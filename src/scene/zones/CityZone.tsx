@@ -56,6 +56,14 @@ const SELECT_SCALE = 1.12
  */
 const SELECT_GLOW = 1.9
 const HOVER_GLOW = 0.95
+/** Brillo de los edificios que coinciden con el filtro de consumo. */
+const FILTER_GLOW = 1.25
+/**
+ * Multiplicador del tono base de los edificios que NO coinciden con el
+ * filtro. Al atenuarlos por debajo de BASE_GLOW, los del nivel elegido
+ * destacan sin necesidad de ocultar la ciudad.
+ */
+const FILTER_DIM = 0.28
 /** Índice de esta zona en `ZONES` (el hover sólo vive aquí). */
 const CITY_ZONE_INDEX = 4
 /**
@@ -250,6 +258,10 @@ export default function CityZone({ zone }: { zone: ZoneConfig }) {
     const store = useExperienceStore.getState()
     const data = store.cityData
     const selected = store.selectedBuilding
+    // Filtro de consumo: se lee del store sin suscripción. Al cambiar,
+    // este bucle interpola colores; no hay re-render de las 560 instancias.
+    const filter = store.energyFilter
+    const filterActive = filter !== 'all'
 
     // Hover bajo el cursor. Se recalcula cada frame (no sólo al mover el
     // ratón) porque la cámara vuela: el rayo cambia aunque el cursor esté
@@ -273,20 +285,25 @@ export default function CityZone({ zone }: { zone: ZoneConfig }) {
 
       const isHover = hoverId === i
       const isSel = selected?.id === i
+      const isFilterMatch = filterActive && d.status === filter
 
       // --- Objetivo de color -------------------------------------------
-      // Jerarquía: seleccionado (brillo persistente máximo) > hover (brillo
-      // suave) > apagado (tono base tenue, sin Bloom). El seleccionado toma
-      // el color en vivo del tick IoT aunque el cursor esté lejos.
-      if (isSel || isHover) {
+      // Jerarquía: seleccionado > coincidencia con el filtro > hover (sólo
+      // sin filtro) > apagado. Con un filtro activo, pasar el ratón por un
+      // edificio de OTRO nivel no lo ilumina: la vista debe seguir siendo
+      // legible. Su escala sí reacciona y al pulsarlo se abre su panel.
+      if (isSel || isFilterMatch || (isHover && !filterActive)) {
         const tc = STATUS_COLORS[d.status]
         v.targetColors[i * 3] = tc[0]
         v.targetColors[i * 3 + 1] = tc[1]
         v.targetColors[i * 3 + 2] = tc[2]
       } else {
-        v.targetColors[i * 3] = BASE_GLOW[0]
-        v.targetColors[i * 3 + 1] = BASE_GLOW[1]
-        v.targetColors[i * 3 + 2] = BASE_GLOW[2]
+        // Con filtro, el resto se apaga por debajo del tono base para que
+        // el nivel elegido domine la escena sin ocultar la ciudad.
+        const dim = filterActive ? FILTER_DIM : 1
+        v.targetColors[i * 3] = BASE_GLOW[0] * dim
+        v.targetColors[i * 3 + 1] = BASE_GLOW[1] * dim
+        v.targetColors[i * 3 + 2] = BASE_GLOW[2] * dim
       }
       // Pico de energía → el edificio crece un poco (pico de datos).
       v.targetHeights[i] = b.h * (1 + (d.energy - 50) * 0.004)
@@ -301,8 +318,16 @@ export default function CityZone({ zone }: { zone: ZoneConfig }) {
       // --- Efectos locales --------------------------------------------
       const breath = 1 + Math.sin(t * BREATH_SPEED + i * 0.13) * BREATH_AMOUNT
       const scaleMul = (isHover ? HOVER_SCALE : 1) * (isSel ? SELECT_SCALE : 1)
-      // Hover sobre el propio seleccionado = brillo de selección.
-      const glow = isSel ? SELECT_GLOW * glowPulse : isHover ? HOVER_GLOW * glowPulse : 1
+      // Hover sobre el propio seleccionado = brillo de selección. Los
+      // edificios del filtro laten con la ciudad; el hover sobre uno de
+      // ellos añade un pequeño extra para confirmar la interacción.
+      const glow = isSel
+        ? SELECT_GLOW * glowPulse
+        : isFilterMatch
+          ? FILTER_GLOW * glowPulse * (isHover ? 1.12 : 1)
+          : isHover && !filterActive
+            ? HOVER_GLOW * glowPulse
+            : 1
 
       const h = v.heights[i] * breath * scaleMul
 

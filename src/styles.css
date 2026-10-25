@@ -2059,6 +2059,107 @@ canvas {
   animation: dotPulse 2.4s ease-in-out infinite;
 }
 
+/* --- Filtro de consumo del Digital Twin --- */
+.city-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 3px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.city-filter-label {
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  color: rgba(238, 246, 255, 0.35);
+}
+
+.city-filter-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.city-chip {
+  --chip-color: #eef6ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid rgba(238, 246, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(238, 246, 255, 0.035);
+  color: rgba(238, 246, 255, 0.52);
+  font: inherit;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.city-chip:hover {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--chip-color) 55%, transparent);
+  background: color-mix(in srgb, var(--chip-color) 8%, rgba(10, 12, 24, 0.55));
+}
+
+.city-chip.is-active {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--chip-color) 75%, transparent);
+  background: color-mix(in srgb, var(--chip-color) 16%, rgba(10, 12, 24, 0.6));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--chip-color) 28%, transparent);
+}
+
+.city-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
+}
+
+.city-chip-dot {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--chip-color);
+  box-shadow: 0 0 6px var(--chip-color);
+  opacity: 0.55;
+  transition:
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.city-chip.is-active .city-chip-dot {
+  opacity: 1;
+  box-shadow: 0 0 9px var(--chip-color);
+}
+
+.city-chip-count {
+  color: rgba(238, 246, 255, 0.4);
+  font-size: 7px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.city-chip.is-active .city-chip-count {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* En teléfonos muy angostos los cuatro niveles pasan a 2×2. */
+@media (max-width: 380px) {
+  .city-filter-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* --- Panel contextual del edificio (lateral derecho) --- */
 .building-panel {
   --accent: #00ff88;

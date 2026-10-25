@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useShallow } from 'zustand/react/shallow'
 import { useExperienceStore } from '../store/useExperienceStore'
+import type { CityEnergyFilter } from '../store/useExperienceStore'
 import { ZONES } from '../config/zones'
+
+/** Niveles de consumo disponibles en el filtro (ALL = sin filtro). */
+const ENERGY_FILTERS: ReadonlyArray<{
+  id: CityEnergyFilter
+  label: string
+  color: string
+}> = [
+  { id: 'all', label: 'ALL', color: '#eef6ff' },
+  { id: 'normal', label: 'NORMAL', color: '#00ff88' },
+  { id: 'high-energy', label: 'HIGH', color: '#00f0ff' },
+  { id: 'alert', label: 'ALERT', color: '#ff0055' },
+]
 
 /**
  * HUD superior-izquierdo de la zona Digital Twin.
@@ -47,23 +61,38 @@ export default function CityHUD() {
     return () => cancelAnimationFrame(raf)
   }, [visible])
 
-  // Estado del sistema derivado de los datos IoT (selector con reduce).
+  // Estado del sistema y contadores del filtro derivados del MISMO recorrido
+  // de los datos IoT. `useShallow` evita re-renders cuando los tres números
+  // no cambian; aun así el HUD sólo se repinta como mucho cada 2 s.
+  const counts = useExperienceStore(
+    useShallow((s) => {
+      let normal = 0
+      let high = 0
+      let alert = 0
+      for (const b of s.cityData) {
+        if (b.status === 'normal') normal++
+        else if (b.status === 'high-energy') high++
+        else alert++
+      }
+      return { normal, high, alert }
+    }),
+  )
+
+  const energyFilter = useExperienceStore((s) => s.energyFilter)
+  const setEnergyFilter = useExperienceStore((s) => s.setEnergyFilter)
+
   // Umbrales calibrados contra el equilibrio de la simulación (~34 alert y
   // ~134 high-energy de 560): así la ciudad lee OPTIMAL la mayor parte del
   // tiempo y sólo asciende a ELEVATED/WARNING cuando un bache de ticks
   // acumula picos por encima de lo esperado.
-  const systemStatus = useExperienceStore((s) => {
-    let alerts = 0
-    let high = 0
-    for (const b of s.cityData) {
-      if (b.status === 'alert') alerts++
-      else if (b.status === 'high-energy') high++
-    }
-    if (alerts > 70) return 'CRITICAL' as const
-    if (alerts > 52 || high > 190) return 'WARNING' as const
-    if (alerts > 40 || high > 165) return 'ELEVATED' as const
-    return 'OPTIMAL' as const
-  })
+  const systemStatus =
+    counts.alert > 70
+      ? ('CRITICAL' as const)
+      : counts.alert > 52 || counts.high > 190
+        ? ('WARNING' as const)
+        : counts.alert > 40 || counts.high > 165
+          ? ('ELEVATED' as const)
+          : ('OPTIMAL' as const)
 
   const statusClass =
     systemStatus === 'OPTIMAL'
@@ -83,7 +112,8 @@ export default function CityHUD() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          aria-hidden="true"
+          role="region"
+          aria-label="Digital Twin telemetry and energy filter"
         >
           <div className="city-hud-title">ECO-SMART CITY TWIN</div>
 
@@ -102,14 +132,61 @@ export default function CityHUD() {
             <span className="city-meta-sep" aria-hidden="true">
               ·
             </span>
-            <span className="city-nodes">560 NODES</span>
+            <span className="city-nodes">
+              {counts.normal + counts.high + counts.alert} NODES
+            </span>
             <span className="city-meta-sep" aria-hidden="true">
               ·
             </span>
             <span className="city-tick">LIVE IoT</span>
           </div>
 
-          <p className="city-hud-hint">CLICK A BUILDING TO INSPECT</p>
+          <div className="city-filter" role="group" aria-label="Filter buildings by energy consumption">
+            <span className="city-filter-label">ENERGY CONSUMPTION</span>
+            <div className="city-filter-chips">
+              {ENERGY_FILTERS.map((option) => {
+                const active = energyFilter === option.id
+                const count =
+                  option.id === 'all'
+                    ? counts.normal + counts.high + counts.alert
+                    : option.id === 'normal'
+                      ? counts.normal
+                      : option.id === 'high-energy'
+                        ? counts.high
+                        : counts.alert
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`city-chip${active ? ' is-active' : ''}`}
+                    data-city-filter={option.id}
+                    aria-pressed={active}
+                    aria-label={`${option.label} — ${count} buildings`}
+                    style={
+                      { ['--chip-color' as string]: option.color } as React.CSSProperties
+                    }
+                    onClick={() =>
+                      // Volver a pulsar el nivel activo lo desactiva (vuelve a
+                      // ALL). En ALL el clic es idempotente.
+                      setEnergyFilter(active && option.id !== 'all' ? 'all' : option.id)
+                    }
+                  >
+                    <span className="city-chip-dot" aria-hidden="true" />
+                    <span className="city-chip-label">{option.label}</span>
+                    <span className="city-chip-count" aria-hidden="true">
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <p className="city-hud-hint">
+            {energyFilter === 'all'
+              ? 'CLICK A BUILDING TO INSPECT'
+              : 'FILTER ACTIVE · CLICK A LIT BUILDING'}
+          </p>
         </motion.div>
       )}
     </AnimatePresence>

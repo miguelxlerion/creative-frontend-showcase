@@ -31,6 +31,9 @@ export type ExperiencePhase = 'intro' | 'experience' | 'credits'
 
 export type BuildingStatus = 'normal' | 'high-energy' | 'alert'
 
+/** 'all' = sin filtro; el resto ilumina sólo ese nivel de consumo. */
+export type CityEnergyFilter = 'all' | BuildingStatus
+
 export interface CityBuildingData {
   id: number
   status: BuildingStatus
@@ -49,15 +52,50 @@ export const STATUS_COLORS: Record<BuildingStatus, [number, number, number]> = {
   alert: [1.0, 0.0, 0.33],         // #ff0055
 }
 
-/** Datos IoT iniciales (se rellenan aleatoriamente tras el primer tick). */
+/**
+ * Distribución del tick: "normal" es lo más probable. OJO con los pesos:
+ * el estado PERSISTE hasta que el edificio vuelve a tocarse (~2.7% de prob.
+ * por tick), así que el equilibrio es la propia probabilidad × 560.
+ */
+function rollStatus(): BuildingStatus {
+  const roll = Math.random()
+  return roll < 0.7 ? 'normal' : roll < 0.94 ? 'high-energy' : 'alert'
+}
+
+/** Energía y temperatura coherentes con el estado asignado. */
+function readingsFor(status: BuildingStatus): { energy: number; temperature: number } {
+  return {
+    energy:
+      status === 'alert'
+        ? 75 + Math.random() * 25
+        : status === 'high-energy'
+          ? 55 + Math.random() * 30
+          : 25 + Math.random() * 40,
+    temperature:
+      status === 'alert' ? 30 + Math.random() * 14 : 19 + Math.random() * 12,
+  }
+}
+
+/**
+ * Datos IoT iniciales. Se siembran con la MISMA distribución que el tick
+ * para que el filtro y el System Status tengan una ciudad realista desde el
+ * primer frame: antes todo nacía "normal" y los niveles alto/alerta tardaban
+ * minutos en aparecer (el estado sólo cambia cuando el edificio se toca).
+ */
 function createInitialCityData(): CityBuildingData[] {
-  return CITY_LAYOUT.map((b) => ({
-    id: b.id,
-    status: 'normal' as BuildingStatus,
-    energy: 35 + Math.random() * 35,
-    temperature: 20 + Math.random() * 8,
-    history: Array.from({ length: 24 }, () => 30 + Math.random() * 40),
-  }))
+  return CITY_LAYOUT.map((b) => {
+    const status = rollStatus()
+    const { energy, temperature } = readingsFor(status)
+    return {
+      id: b.id,
+      status,
+      energy,
+      temperature,
+      history: Array.from({ length: 24 }, () =>
+        Math.max(0, Math.min(100, energy + (Math.random() - 0.5) * 12)),
+      ),
+    }
+  })
 }
 
 export interface ExperienceState {
@@ -83,6 +121,13 @@ export interface ExperienceState {
   /** ¿El puntero está sobre un edificio 3D? Lo lee CursorOverlay. */
   sceneHover: boolean
   setSceneHover: (hover: boolean) => void
+  /**
+   * Filtro de consumo de la Digital Twin: 'all' o un nivel concreto.
+   * CityZone lo lee con getState() en useFrame (sin suscripción) para
+   * iluminar los edificios que coinciden y atenuar el resto.
+   */
+  energyFilter: CityEnergyFilter
+  setEnergyFilter: (filter: CityEnergyFilter) => void
 
   /**
    * Zona Product Configurator (zona 5): página activa 0..3, derivada del
@@ -113,6 +158,9 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
       sceneHover: false,
       activeSubSection: null,
       productPhase: 0,
+      // El filtro es una vista de la ciudad, no una preferencia global:
+      // al salir de la zona debe volver a "todos".
+      energyFilter: 'all',
     }),
   setFlying: (flying) => set({ isFlying: flying }),
   setOpenDropdown: (index) => set({ openDropdown: index }),
@@ -134,30 +182,14 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
         const b = next[idx]
         if (!b) continue
 
-        // Sesgo: "normal" es lo más probable. OJO con los pesos: el estado
-        // PERSISTE hasta que el edificio vuelve a tocarse (~2.7% de prob.
-        // por tick), así que el equilibrio es la propia probabilidad × 560.
-        // Con 6% de alert el equilibrio son ~34 alertas: justo por debajo
-        // del umbral ELEVATED, de modo que la ciudad lee OPTIMAL la mayor
-        // parte del tiempo y sólo baila a ELEVATED con los picos.
-        const roll = Math.random()
-        const status: BuildingStatus =
-          roll < 0.7 ? 'normal' : roll < 0.94 ? 'high-energy' : 'alert'
-
-        const energy = status === 'alert'
-          ? 75 + Math.random() * 25
-          : status === 'high-energy'
-            ? 55 + Math.random() * 30
-            : 25 + Math.random() * 40
+        const status = rollStatus()
+        const { energy, temperature } = readingsFor(status)
 
         next[idx] = {
           ...b,
           status,
           energy,
-          temperature:
-            status === 'alert'
-              ? 30 + Math.random() * 14
-              : 19 + Math.random() * 12,
+          temperature,
           history: [...b.history.slice(1), energy],
         }
       }
@@ -166,6 +198,12 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
     }),
   sceneHover: false,
   setSceneHover: (hover) => set({ sceneHover: hover }),
+
+  energyFilter: 'all',
+  // Cambiar de vista cierra el panel del edificio: si el seleccionado no
+  // pertenece al nivel filtrado, quedaría como un punto brillante suelto.
+  setEnergyFilter: (filter) =>
+    set({ energyFilter: filter, selectedBuilding: null }),
 
   productPhase: 0,
   setProductPhase: (phase) =>
