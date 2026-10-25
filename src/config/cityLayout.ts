@@ -20,6 +20,15 @@ export interface CityBuildingDef {
   w: number
   /** Fondo (Z). */
   d: number
+  /**
+   * Giro sobre la base (radianes). Las fachadas no deben mirar todas al mismo
+   * lado ni quedar perfectamente alineadas con la rejilla: eso convierte la
+   * ciudad en una matriz de copias. Se parte de cuartos de vuelta y se añade
+   * un jitter pequeño; el AABB de selección usa la huella girada real.
+   */
+  rot: number
+  /** Variación de tono del material (0.82-1.14) para romper la monotonía. */
+  tone: number
 }
 
 /** Nº total de edificios (>= 500 como pide el requisito). */
@@ -44,22 +53,42 @@ function generateLayout(): CityBuildingDef[] {
 
   for (let gx = 0; gx < CITY_GRID && data.length < CITY_BUILDING_COUNT; gx++) {
     for (let gz = 0; gz < CITY_GRID && data.length < CITY_BUILDING_COUNT; gz++) {
-      // ~12% de huecos: crean plazas y calles irregulares
-      if (Math.random() < 0.12) continue
+      // 9% de huecos + huellas holgadas: el edificio de oficinas ocupa su
+      // parcela completa, así que hacen falta calles visibles o la ciudad se
+      // lee como un bloque macizo. Bajar de aquí dejaría el contador por
+      // debajo de 500.
+      if (Math.random() < 0.09) continue
 
       const x = (gx - half) * CITY_SPACING
       const z = (gz - half) * CITY_SPACING
 
-      // Altura sesgada: mayoría baja, pocas torres (skyline realista)
+      // Altura sesgada: mayoría baja, pocas torres. El modelo es un edificio
+      // de oficinas con proporción ~1.3 (alto/ancho de su huella), así que
+      // las torres se limitan a 2.3 para que el estiramiento vertical no lo
+      // convierta en una aguja (con el arco anterior llegaba a 2.8).
       const roll = Math.random()
-      const h = roll > 0.92
-        ? 1.8 + Math.random() * 1.7   // torres (~8%)
-        : 0.3 + Math.random() * 1.2   // edificios bajos
+      const isTower = roll > 0.92
+      const h = isTower
+        ? 1.5 + Math.random() * 0.8   // torres (~8%)
+        : 0.5 + Math.random() * 0.85  // edificios bajos
 
-      const w = 0.32 + Math.random() * 0.22
-      const d = 0.32 + Math.random() * 0.22
+      // Huellas más anchas que con el arco: el modelo nuevo es un bloque de
+      // oficinas y necesita base para no leerse como un poste. El máximo
+      // (0.6) deja 0.05 de calle frente al paso de rejilla (0.65).
+      const w = (isTower ? 0.48 : 0.38) + Math.random() * (isTower ? 0.12 : 0.18)
+      const d = (isTower ? 0.44 : 0.34) + Math.random() * (isTower ? 0.12 : 0.18)
 
-      data.push({ id: data.length, x, z, h, w, d })
+      data.push({
+        id: data.length,
+        x,
+        z,
+        h,
+        w,
+        d,
+        // Cuartos de vuelta + jitter: variedad sin perder la lectura urbana.
+        rot: (Math.floor(Math.random() * 4) * Math.PI) / 2 + (Math.random() - 0.5) * 0.34,
+        tone: 0.82 + Math.random() * 0.32,
+      })
     }
   }
 

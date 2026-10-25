@@ -166,10 +166,13 @@ export default function CameraController() {
       if (building) {
         const center = new THREE.Vector3(
           zone.position[0] + building.x,
-          zone.position[1] + CITY_GROUND_Y + building.h * 0.55,
+          zone.position[1] + CITY_GROUND_Y + building.h * 0.5,
           zone.position[2] + building.z,
         )
-        const dist = 2.2 + building.h * 1.3
+        // El edificio tiene voladizos y una losa base ancha: con la fórmula
+        // anterior la fachada llenaba la pantalla y no se leía la planta.
+        // Más aire para que el modelo completo entre en el encuadre.
+        const dist = 2.6 + building.h * 1.6
 
         return {
           pose: pullBack(

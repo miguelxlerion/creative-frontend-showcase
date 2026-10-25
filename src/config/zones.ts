@@ -212,11 +212,12 @@ export const ZONES: ZoneConfig[] = [
   {
     id: 'city',
     label: 'Digital Twin',
+    // Plano general ligeramente diagonal. De frente, la retícula de edificios
+    // se leía como una matriz de copias; en diagonal se ven fachada y lateral,
+    // y la ciudad (24 × 0.65 ≈ 15.6 unidades) sigue entrando en cuadro.
     position: [64, 0, -16],
-    // Plano general isométrico alto: la ciudad mide ~15.6 unidades de lado
-    // (24 × 0.65), así que la cámara necesita distancia para encuadrarla.
-    cameraPosition: [64, 12, 4],
-    lookAt: [64, -0.5, -16],
+    cameraPosition: [70.5, 9.5, 2],
+    lookAt: [64, -0.4, -16],
     accent: '#00ff88',
     stat: '500+ BUILDINGS',
     hudLabel: 'REAL-TIME IOT',

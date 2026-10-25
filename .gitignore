@@ -7,6 +7,9 @@ dist/
 *.log
 dev.log
 
+# Modelos fuente sin optimizar (el GLB web vive en public/models/)
+/models/
+
 # Entorno / secretos
 .env
 .env.*

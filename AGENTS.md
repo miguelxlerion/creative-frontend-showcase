@@ -45,7 +45,7 @@ src/
     useExperienceStore.ts   Estado global zustand
   config/
     zones.ts                ★ Registro único de las 6 zonas (config + textos + datos)
-    cityLayout.ts           ★ Layout procedural de la zona Digital Twin (560 edificios)
+    cityLayout.ts           ★ Layout procedural de la zona Digital Twin (skyline, giros y tonos)
     productLayout.ts        ★ Layout procedural de la zona Product Configurator (8 partes dron)
   scene/
     Scene.tsx               Iluminación, Environment, Stars, DustField, suelo, zonas, post-proceso
@@ -57,7 +57,7 @@ src/
       TestingZone.tsx       Zona 1 — Tests de laboratorio (verde)
       AIWorkflowZone.tsx    Zona 2 — Pipeline de IAs (morado)
       CreativeZone.tsx      Zona 3 — Modelado 3D + dataviz (rojo)
-      CityZone.tsx          Zona 4 — InstancedMesh 560 edificios + IoT + hover/clic
+      CityZone.tsx          Zona 4 — GLB low-poly instanciado (~520) + IoT + hover/clic
       ProductZone.tsx       Zona 5 — Dron procedural 6 piezas + ScrollControls (4 páginas)
       productScroll.ts      ★ Puente imperativo offset del canvas → HUD DOM del configurador
   ui/
@@ -222,11 +222,43 @@ Si un elemento nuevo queda tapado, casi siempre es un conflicto de `z-index` en 
 `React.StrictMode` está activo: los `useEffect` corren dos veces. No guardes estado asumido
 único sin limpiar.
 
-### 4.5 Geometría procedural, sin assets de red
+### 4.5 Geometría procedural y assets locales
 
-Todo es primitivas Three.js + buffers procedurales. **No hay HDR ni texturas que se descarguen**
-(el `Environment` usa una escena procedural de meshes, no un preset remoto). Mantenlo así:
-cero dependencias de red en runtime.
+Casi todo es primitivas Three.js + buffers procedurales. **El único modelo binario es
+`public/models/building.glb`** (~92 KB, low-poly, 1.995 vértices / 958 triángulos, 1 material
+y ninguna textura): el edificio de oficinas que se instancia ~520 veces en el Digital Twin. Se
+carga con `useGLTF(url, false)` para que drei no configure un decoder remoto.
+
+Ese GLB viene de **3ds Max con Z arriba** y la base en `z=0`. Trae un nodo raíz con una matriz
+que aplica una conversión de ejes (+90° en X, que deja el modelo boca abajo) más la traslación
+del pivote. **`CityZone` ignora esa matriz a propósito**: usa los vértices crudos, asume Z-up y
+los endereza con `rotationX(-π/2)`; después centra la huella y apoya la base en `y=0`. Si
+aplicas la matriz del nodo *y* la rotación, se cancelan y el edificio queda tumbado (bug real).
+Si lo reemplazas por otro modelo, revisa que los vértices crudos estén en Z-up con la base en
+`z=0`; la matriz del nodo no se usa.
+
+**Normales.** `CityZone` conserva las normales **autoradas** del GLB: `applyMatrix4` ya las
+transforma con la matriz de normales, así que se respeta la intención del modelo y **no** se
+llama a `computeVertexNormals()`. El export de 3ds Max deja errores de winding en dos escalas
+distintas, y se corrigen en dos pasadas tras `toNonIndexed()`:
+
+1. **Cascarones enteros** — las tres ventanas de la planta baja (componente de 83 triángulos)
+   tenían volumen firmado negativo. `repairInvertedShells()` detecta por volumen los componentes
+   invertidos, invierte su winding y alinea las normales.
+2. **Caras sueltas** — el muro trasero (4 triángulos grandes) y varios detalles de la fachada
+   derecha pertenecían al componente principal, cuyo volumen neto era positivo, así que el test
+   de volumen no los detectaba: con `FrontSide` se descartaban y el edificio se veía hueco por
+   detrás. `repairInwardFacingWalls()` lanza un rayo desde el lado exterior del bounding box
+   hacia cada cara candidata (normal · lado < -0.15); si la cara es la primera superficie que ve
+   el rayo, invierte su winding y niega las normales que queden al lado contrario. Las caras
+   interiores legítimas no se tocan porque el muro exterior las oculta.
+
+Verificado en runtime: 958 triángulos, 3 componentes con volumen positivo, 0 discrepancias
+winding-normal y **0 caras visibles hacia dentro** (169 primeras superficies comprobadas).
+
+Los modelos fuente sin optimizar viven en `models/` y están **ignorados por git**. El
+`public/models/building.glb` versionado es el que consume la web; no hace falta ningún
+paso de `gltf-transform` mientras el modelo sea low-poly.
 
 ### 4.6 Suelo y escala
 
@@ -319,20 +351,20 @@ sin sub-temas (la interacción es clic directo en edificios 3D).
 
 | Componente | Rol |
 |------------|-----|
-| `config/cityLayout.ts` | Layout procedural compartido (rejilla 24×0.65 con ~12% de huecos; `CITY_LAYOUT.length` ≈ 500–530, con 560 como tope de buffers). Generado **una sola vez** a nivel de módulo; lo leen CityZone, CameraController y HUD. |
-| `scene/zones/CityZone.tsx` | InstancedMesh único (drei `<Instances>`) — **una draw call** para toda la ciudad. Geometría `BoxGeometry(1,1,1)` con **vertex colors** que hornean un sombreado por cara, y material **unlit** `MeshBasicMaterial`. El color por edificio vive en `instanceColor`, con cuatro niveles: tono base apagado, brillo de filtro, brillo suave en hover y brillo máximo persistente en el seleccionado. Buffers `instanceMatrix`/`instanceColor` escritos **imperativamente** en `useFrame` (`needsUpdate=true`); **cero re-renders React** por frame ni por tick IoT. |
+| `config/cityLayout.ts` | Layout procedural compartido (rejilla 24×0.65 con 9% de huecos + huellas holgadas; `CITY_LAYOUT.length` ≈ 515–545, con 560 como tope de buffers). Generado **una sola vez** a nivel de módulo; lo leen CityZone, CameraController y HUD. Cada edificio guarda `h/w/d`, `rot` (cuarto de vuelta + jitter) y `tone` (variación de material). |
+| `scene/zones/CityZone.tsx` | InstancedMesh único (drei `<Instances>`) — **una draw call** para toda la ciudad. Geometría: el GLB low-poly se clona, se endereza a Y-arriba, se centra y se normaliza a caja unitaria (x/z ∈ [-0.5, 0.5], base en y=0); luego `toNonIndexed()`, **normales autoradas** (sin `computeVertexNormals`), reparación de cascarones invertidos por volumen firmado **y de caras sueltas visibles hacia dentro** (`repairInwardFacingWalls`), y **vertex colors** con un sombreado falso por cara. Material **unlit** `MeshBasicMaterial`. El color por edificio vive en `instanceColor`, con cuatro niveles: tono base apagado, brillo de filtro, brillo suave en hover y brillo máximo persistente en el seleccionado. Buffers `instanceMatrix`/`instanceColor` escritos **imperativamente** en `useFrame` (`needsUpdate=true`); **cero re-renders React** por frame ni por tick IoT. |
 | `store/useExperienceStore.ts` | `selectedBuilding`, `cityData[]`, `tickCityData()` (cada 2 s actualiza 10-20 edificios aleatorios), `sceneHover` (para CursorOverlay), `energyFilter` + `setEnergyFilter` (filtro de consumo). `setZone` limpia selección y filtro. La zona lee con `getState()` en `useFrame` → sin suscripción. |
-| `scene/CameraController.tsx` | Vuelo a edificio: clave incluye `selectedBuilding`. Órbita diagonal isométrica a distancia fija (`BUILDING_TRANSITION = 1.4 s`). `CITY_ZONE_INDEX = 4`. |
+| `scene/CameraController.tsx` | Vuelo a edificio: clave incluye `selectedBuilding`. Órbita diagonal isométrica a `dist = 2.6 + h * 1.6` desde el centro a media altura (`BUILDING_TRANSITION = 1.4 s`). `CITY_ZONE_INDEX = 4`. |
 | `ui/CityHUD.tsx` | HUD superior-izquierdo (solo zona 4): título, **System Status** derivado de IoT (OPTIMAL/ELEVATED/WARNING/CRITICAL), FPS real (rAF, re-render solo al cambiar entero), recuento real de nodos, **chips de filtro de consumo** (ALL / NORMAL / HIGH / ALERT con contadores) y "LIVE IoT". Framer Motion entrada/salida. |
-| `ui/BuildingPanel.tsx` | Panel lateral derecho (Framer Motion `x:100%→0%`): ID, badge status, barra energía animada, temperatura, **mini-chart SVG** (24 pts), botón **RESET VIEW** (vuelve a vista isométrica). |
+| `ui/BuildingPanel.tsx` | Panel lateral derecho (Framer Motion `x:100%→0%`): ID, badge status, barra energía animada, temperatura, **mini-chart SVG** (24 pts), botón **RESET VIEW** (vuelve a la vista general de la ciudad). |
 | `ui/CursorOverlay.tsx` | Lee `sceneHover` del store + `domHoverRef` local → anillo se convierte en marco sobre edificios. |
 | `styles.css` | `.city-hud`, `.building-panel`, `.bp-*`, `.city-stats` (drei Stats reposicionado top-right bajo pestañas). |
 
-**Gotchas críticos de la zona 5 (no volver a romperlos):**
+**Gotchas críticos de la zona Digital Twin (no volver a romperlos):**
 
-1. **`<Instances>` exige hijos `<Instance>` vacíos.** drei fija `count = min(limit, range, instances.length)` en su `useFrame` (Instances.js:135-136). Sin hijos, `count=0` → **ciudad invisible, 0 errores en consola** (mismo bug silencioso que el `bufferAttribute count=0`). Además `raycast: () => null` delega el raycast al `PositionMesh` de cada `<Instance>`: sin hijos, **no habría clics**.
+1. **`<Instances>` exige hijos `<Instance>` vacíos.** drei fija `count = min(limit, range, instances.length)` en su `useFrame` (Instances.js:135-136). Sin hijos, `count=0` → **ciudad invisible, 0 errores en consola** (mismo bug silencioso que el `bufferAttribute count=0`). Los hijos no llevan geometría: el hover y el clic se resuelven con un **AABB manual** contra `CITY_LAYOUT` y la cámara real, no con el raycast de drei.
 
-2. **El `useFrame` de drei corre ANTES que el del padre** (orden hijos → padre en R3F). drei escribe las transforms de los `PositionMesh` por defecto; el `useFrame` de CityZone **los pisa** con las animadas. Como mi escritura va después, los valores finales del frame son los míos, y el raycast de drei lee exactamente esos mismos buffers → **lo que se ve es lo que se pulsa**.
+2. **El `useFrame` de drei corre ANTES que el del padre** (orden hijos → padre en R3F). drei escribe las transforms de los `PositionMesh` por defecto; el `useFrame` de CityZone **las pisa** con las animadas. Como la escritura va después, los valores finales del frame son los del layout; el pick usa ese mismo layout, así que **lo que se ve es lo que se pulsa**.
 
 3. **Jerarquía de brillo: seleccionado > coincidencia de filtro > hover > apagado.** `instanceColor` se escribe cada frame. El **seleccionado** (clic) conserva su color de estado con `SELECT_GLOW = 1.9`; las coincidencias del **filtro** usan `FILTER_GLOW = 1.25` (×1.12 si además hay hover); el **hover sin filtro** se enciende con `HOVER_GLOW = 0.95`; y el resto vuelve a `BASE_GLOW`, multiplicado por `FILTER_DIM = 0.28` cuando hay un filtro activo. Con filtro, el hover de un edificio de OTRO nivel no lo ilumina (sólo escala) para no romper la lectura de la vista. El pulso (`glowPulse`, 0.64–1.0) multiplica a los tres estados. El color de estado se lee de `data[i]` en vivo (no del snapshot de `selectedBuilding`), para que el tick IoT también actualice el edificio seleccionado.
 
@@ -342,6 +374,9 @@ sin sub-temas (la interacción es clic directo en edificios 3D).
 6. **HUD no pisa el trigger dossier:** `.city-hud` usa `top:148px` (el trigger está en `top:96px`). En móvil el hint se oculta (`@media max-width: 560px`).
 7. **Bounding sphere calculada con `count = 0`.** drei construye el `<instancedMesh>` con `args={[null, null, 0]}`; el renderer cachea su `boundingSphere` con 0 instancias (radio **-1**) y NO la recalcula cuando drei sube `count` después. `Frustum.intersectsSphere` devuelve `false` siempre → **la ciudad entera es invisible en todas las zonas, sin un solo error en consola**. CityZone la recalcula en su `useFrame` cuando `count > 0` y el radio es inválido. Es el mismo patrón silencioso que 4.1-B y el gotcha 1: cualquier derivado (buffer, bounds) calculado antes de que existan los datos queda envenenado.
 8. **Filtro de consumo (`energyFilter`):** vive en el store y CityZone lo lee con `getState()` en `useFrame`; **no** debe moverlo a un selector de React ni a un estado local de CityHUD, porque cada cambio re-renderizaría la escena. `setEnergyFilter` limpia `selectedBuilding` para que un edificio fuera del nivel no quede como punto brillante suelto. Los chips son `<button>` reales con `aria-pressed` (el HUD ya no es `aria-hidden`), y en ≤380 px pasan a 2×2.
+9. **El GLB low-poly se instancia; no vuelvas a meter un material/textura del modelo.** `public/models/building.glb` pesa ~92 KB, tiene 1.995 vértices / 958 triángulos, 1 material y ninguna textura. CityZone ignora su material y **la matriz del nodo raíz**: usa los vértices crudos (3ds Max, Z-up), los endereza (`rotationX(-π/2)`), centra la huella, apoya la base en `y=0`, normaliza a caja unitaria, pasa a no-indexada, **conserva las normales autoradas** (no llama a `computeVertexNormals`) y repara dos tipos de winding invertido antes de hornear el sombreado en `vertexColors`: componentes enteros con volumen firmado negativo (las ventanas de la planta baja) y caras sueltas del componente principal que miran hacia dentro y son visibles desde fuera (el muro trasero y detalles de la fachada derecha, invisibles con `FrontSide`). Cualquier textura del GLB se descarta a propósito; el color final es `vertexColor × instanceColor` del material unlit. Se libera la geometría al desmontar. El original de `models/` está ignorado por git; solo se versiona el GLB web. El modelo tiene el techo abierto y una losa base que lo cierra visualmente desde arriba; no se ve el fondo a través de él.
+10. **El giro vive en `rot` (radianes), no en cuartos de vuelta enteros.** Es un cuarto de vuelta más un jitter de ±0.17 rad para romper la retícula; por eso el AABB de picking calcula la huella rotada con `|cos|·w + |sin|·d`. Si vuelves a asumir un giro de 90° exacto, el hover se desalinea de lo que se ve.
+11. **Encuadre del Digital Twin:** el plano general es diagonal (`[70.5, 9.5, 2]` mirando a `[64, -0.4, -16]`) para que se vean fachada y lateral. El vuelo a un edificio usa `dist = 2.6 + h * 1.6` desde el centro a media altura: con la fórmula anterior (2.2 + 1.3h) los edificios vecinos llenaban el encuadre.
 
 ### Bugs corregidos en esta pasada
 
