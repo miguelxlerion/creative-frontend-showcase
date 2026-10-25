@@ -1,0 +1,11 @@
+{
+  // SPA estática: Wrangler publica `dist` como assets estáticos y evita el
+  // auto-configurador de frameworks, que exige Vite >= 6. El proyecto usa
+  // Vite 5 y no necesita SSR ni un Worker con código.
+  "name": "creative-frontend-showcase",
+  "compatibility_date": "2026-10-24",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

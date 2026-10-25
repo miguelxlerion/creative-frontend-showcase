@@ -463,3 +463,13 @@ npm run preview  # sirve dist/
 
 Si el puerto está ocupado, Vite sube al siguiente; para forzar uno:
 `npm run dev -- --port 5174`.
+
+### Despliegue en Cloudflare (Workers Static Assets)
+
+`wrangler.jsonc` declara `dist/` como assets estáticos y
+`not_found_handling: "single-page-application"`. Es deliberado: sin ese archivo,
+Wrangler intenta autoconfigurar el proyecto como framework Vite y **exige
+Vite >= 6**; el proyecto usa Vite 5 y no necesita SSR ni Worker con código.
+El build de Cloudflare debe ser `npm run build` y el deploy `npx wrangler deploy`.
+Comprobar el config sin subir nada: `npx wrangler deploy --dry-run`.
+
