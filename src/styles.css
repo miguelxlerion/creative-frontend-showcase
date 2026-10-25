@@ -1,0 +1,3057 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #05050a;
+  --cyan: #00f0ff;
+  --hud-font: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  /* Safe areas (notch, home indicator). 0px en navegadores sin soporte. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: #eef6ff;
+  font-family: var(--hud-font);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* El 100dvh sigue a la barra de URL móvil; 100vh queda como fallback. */
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #05050a;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Lockup superior-izquierdo: logo + nombre en escritorio. En pantallas
+   angostas el nombre no cabe junto a las pestañas, así que queda sólo el
+   logo como marca. */
+.app-header {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(18px + var(--safe-top)) 24px 24px calc(24px + var(--safe-left));
+  pointer-events: none;
+}
+
+/* Insignia de marca: el lienzo negro del PNG funciona como fondo del
+   badge (los corner pixels se recortan con el radio, no flotan sobre el
+   cielo 3D) y el borde cian lo ancla al lenguaje del HUD. */
+.app-logo {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 22%;
+  border: 1px solid rgba(0, 240, 255, 0.32);
+  background: #05050a;
+  box-shadow:
+    0 0 18px rgba(0, 240, 255, 0.18),
+    inset 0 0 10px rgba(0, 240, 255, 0.05);
+  user-select: none;
+}
+
+.app-header-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header-kicker {
+  font-family: var(--hud-font);
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  color: rgba(0, 240, 255, 0.6);
+}
+
+.app-header-name {
+  margin-top: 4px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+canvas {
+  display: block;
+}
+
+/* ---------------------------------------------------------------
+   3D-anchored HUD card (rendered inside drei <Html transform>)
+   --------------------------------------------------------------- */
+
+.hud-card {
+  --accent: var(--cyan);
+  width: 288px;
+  padding: 18px 20px 17px;
+  /* Glass: semi-transparent + backdrop blur, tinted toward the zone accent */
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 9%, rgba(10, 12, 24, 0.6)),
+    rgba(6, 7, 15, 0.42)
+  );
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  /* Neon border: bright left rail + soft glowing edge */
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 60px color-mix(in srgb, var(--accent) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+  /* Thin top highlight to sell the glass edge */
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  animation: cardIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hud-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    transparent
+  );
+  opacity: 0.7;
+}
+
+.hud-tag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  color: color-mix(in srgb, var(--accent) 72%, white);
+  opacity: 0.92;
+  margin-bottom: 10px;
+}
+
+.hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+
+/* The big, bold hero number — the visual anchor of each card */
+.hud-stat {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.02;
+  color: #fff;
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.hud-sub {
+  margin-top: 9px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: rgba(238, 246, 255, 0.62);
+}
+
+.hud-bar {
+  margin-top: 13px;
+  height: 4px;
+  background: rgba(238, 246, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+}
+
+.hud-bar-fill {
+  --accent: var(--cyan);
+  height: 100%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  border-radius: 3px;
+  box-shadow: 0 0 10px var(--accent), 0 0 20px color-mix(in srgb, var(--accent) 50%, transparent);
+  transform-origin: left;
+  animation: barFill 1.4s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------------------------------------------------------
+   Film overlays
+   --------------------------------------------------------------- */
+
+.grain {
+  position: absolute;
+  inset: -50%;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grainShift 0.9s steps(4) infinite;
+}
+
+.vignette-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(2, 2, 8, 0.6) 100%);
+}
+
+/* ---------------------------------------------------------------
+   Keyframes
+   --------------------------------------------------------------- */
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+@keyframes barFill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes grainShift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-4%, 3%); }
+  50% { transform: translate(3%, -4%); }
+  75% { transform: translate(-3%, -2%); }
+  100% { transform: translate(4%, 3%); }
+}
+
+@keyframes panelSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Entrada del dossier centrado: sube, escala y desenfoca hacia nitidez */
+@keyframes dossierIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Sub-navigation overlay (fixed DOM, below main nav bar)
+   --------------------------------------------------------------- */
+
+.sub-nav-overlay {
+  --accent: var(--cyan);
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  pointer-events: none;
+  animation: panelSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  max-width: calc(100vw - 40px);
+}
+
+.sub-nav-overlay .sub-nav {
+  pointer-events: auto;
+}
+
+/* Responsive: avoid overlap with detail panel on narrow screens */
+@media (max-width: 1000px) {
+  .sub-nav-overlay {
+    bottom: 140px;
+  }
+  .detail-panel-overlay {
+    right: 2%;
+    width: 360px;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Sub-navigation (below main HUD)
+   --------------------------------------------------------------- */
+
+.sub-nav {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.sub-btn {
+  --accent: var(--cyan);
+  background: rgba(10, 12, 24, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+}
+
+.sub-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sub-btn:hover {
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.sub-btn:hover::before {
+  opacity: 1;
+}
+
+.sub-btn[aria-pressed="true"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 25%, rgba(10, 12, 24, 0.9)), rgba(6, 7, 15, 0.9));
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ---------------------------------------------------------------
+   Detail panel overlay (fixed DOM, right side)
+   --------------------------------------------------------------- */
+
+.detail-panel-overlay {
+  --accent: var(--cyan);
+  position: fixed;
+  top: 50%;
+  right: 5%;
+  transform: translateY(-50%);
+  width: 400px;
+  max-width: calc(100vw - 20px);
+  z-index: 60;
+  pointer-events: none;
+  /* ⚠️ SIN animación aquí. Este nodo se centra con `translateY(-50%)`, y
+     `panelSlideIn` termina en `translateX(0)` con relleno `both`: el valor
+     final de la animación pisaba el transform de centrado y el panel caía
+     hacia abajo, saliéndose por el borde inferior. El deslizamiento vive en
+     `.detail-panel` (hijo), que no tiene transform propio que perder. */
+}
+
+.detail-panel-overlay .detail-panel {
+  pointer-events: auto;
+  width: 100%;
+  max-height: 75vh;
+}
+
+/* ---------------------------------------------------------------
+   Detail panel (slides in from right)
+   La base vive más abajo, junto a su bloque responsive. Aquí sólo
+   queda el botón de cierre compartido. La animación la hace Framer
+   Motion: una animación CSS de `transform` pisaría su `x`.
+   --------------------------------------------------------------- */
+
+.detail-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.detail-close:hover {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.detail-title {
+  margin: 0 0 14px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.detail-text {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(238, 246, 255, 0.8);
+  font-weight: 400;
+}
+
+.detail-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-metric {
+  background: color-mix(in srgb, var(--accent) 12%, rgba(10, 12, 24, 0.8));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 2px solid var(--accent);
+  color: var(--accent);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-family: 'JetBrains Mono', monospace;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.detail-metric:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ---------------------------------------------------------------
+   HUD Overlay Card — tarjeta héroe fija (abajo a la izquierda)
+   --------------------------------------------------------------- */
+
+.hud-overlay-card {
+  --accent: var(--cyan);
+  width: 300px;
+  padding: 20px 24px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 9%, rgba(10, 12, 24, 0.7)),
+    rgba(6, 7, 15, 0.5)
+  );
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  box-shadow:
+    0 0 25px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 60px color-mix(in srgb, var(--accent) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  animation: cardIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 40;
+}
+
+.hud-overlay-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    transparent
+  );
+  opacity: 0.7;
+}
+
+/* Tarjeta héroe: esquina INFERIOR IZQUIERDA.
+   Antes estaba centrada verticalmente a la izquierda y competía con la
+   escena; abajo-izquierda deja el encuadre 3D limpio. */
+.hud-left {
+  position: fixed;
+  left: calc(24px + var(--safe-left));
+  bottom: calc(24px + var(--safe-bottom));
+}
+
+/* Línea de acento reutilizada por el dossier centrado */
+.hud-accent-line {
+  height: 2px;
+  border-radius: 1px;
+  margin: 16px 0;
+  opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------
+   DOSSIER DE ZONA — disparador (arriba-izquierda, bajo el header)
+   + modal CENTRADO con el desglose completo de la zona activa.
+   z-index: disparador 55 (sobre la tarjeta héroe z-40), backdrop 90
+   (por encima de las pestañas z-[70] y del panel de detalle z-60).
+   --------------------------------------------------------------- */
+
+.dossier-trigger {
+  --accent: var(--cyan);
+  position: fixed;
+  top: calc(96px + var(--safe-top));
+  left: calc(24px + var(--safe-left));
+  z-index: 55;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 8px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 10%, rgba(10, 12, 24, 0.75)),
+    rgba(6, 7, 15, 0.5)
+  );
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  cursor: pointer;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+  animation: cardIn 0.9s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dossier-trigger:hover {
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.dossier-trigger:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.4),
+    0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.dossier-trigger-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+
+.dossier-trigger-index {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  letter-spacing: 0.14em;
+}
+
+/* Fondo del modal: oscurece la escena y captura los clics para cerrar */
+.dossier-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at center, rgba(2, 2, 8, 0.55), rgba(2, 2, 8, 0.85));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn 0.25s ease both;
+}
+
+/* El modal: SIEMPRE centrado en pantalla, glassmorphism neón */
+.dossier-modal {
+  --accent: var(--cyan);
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(78vh, 760px);
+  overflow-y: auto;
+  padding: 26px 28px 24px;
+  border-radius: 14px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 10%, rgba(10, 12, 24, 0.9)),
+    rgba(6, 7, 15, 0.74)
+  );
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent);
+  box-shadow:
+    0 0 40px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 120px color-mix(in srgb, var(--accent) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 60px rgba(0, 0, 0, 0.65);
+  animation: dossierIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  user-select: text;
+}
+
+/* Barra de scroll acorde al look neón */
+.dossier-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dossier-modal::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dossier-modal::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 3px;
+}
+
+.dossier-head {
+  padding-right: 40px;
+}
+
+.dossier-zone-index {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  opacity: 0.9;
+}
+
+.dossier-title {
+  margin: 6px 0 12px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow:
+    0 0 14px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 40px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.dossier-theme {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dossier-theme-label {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(238, 246, 255, 0.4);
+  text-transform: uppercase;
+}
+
+.dossier-theme-value {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Bloque del dato héroe dentro del dossier */
+.dossier-hero {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, rgba(10, 12, 24, 0.55));
+}
+
+.dossier-stat {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dossier-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dossier-progress .hud-bar {
+  flex: 1;
+  margin-top: 0;
+}
+
+.dossier-progress-value {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+
+/* Cabecera de la sección de sub-temas */
+.dossier-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 10px;
+}
+
+.dossier-section-label {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: rgba(238, 246, 255, 0.45);
+}
+
+.dossier-count {
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+
+/* Lista con TODOS los sub-temas de la zona */
+.dossier-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dossier-entry {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: rgba(10, 12, 24, 0.5);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dossier-entry:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, rgba(10, 12, 24, 0.6));
+}
+
+/* Sub-tema actualmente seleccionado en el store */
+.dossier-entry.is-current {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, rgba(10, 12, 24, 0.65));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.dossier-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dossier-entry-index {
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: color-mix(in srgb, var(--accent) 65%, white);
+  opacity: 0.8;
+}
+
+.dossier-entry-title {
+  flex: 1;
+  margin: 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.dossier-entry-badge {
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+
+.dossier-entry-text {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(238, 246, 255, 0.72);
+}
+
+/* ---------------------------------------------------------------
+   FOLDER TABS — fixed navigation TOP RIGHT
+   (replaces the centered bottom glass bar)
+   --------------------------------------------------------------- */
+
+/* The "folder" hangs from the top edge: no top radius, rounded bottom */
+.folder-tabs {
+  /* Ancla del dropdown único: se posiciona respecto a la tira completa. */
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 10px 10px 0;
+  background: linear-gradient(180deg, rgba(10, 12, 24, 0.32), rgba(6, 7, 15, 0.66));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: opacity 0.3s ease;
+}
+
+/* Durante el vuelo la tira se desdibuja para no estorbar el tránsito */
+.folder-tabs.is-flying {
+  opacity: 0.6;
+}
+
+/* Slot relativo: aloja la pestaña y su dropdown (que sale por debajo) */
+.folder-tab-slot {
+  position: relative;
+}
+
+.folder-tab {
+  --accent: var(--cyan);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  /* Inactivas: más bajas y apagadas. El margen negativo conecta el borde
+     inferior de la pestaña con el filo de la carpeta (aspecto físico). */
+  padding: 6px 14px 9px;
+  margin-bottom: -1px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(238, 246, 255, 0.45);
+  font-family: var(--hud-font);
+  cursor: pointer;
+  transition:
+    padding 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.folder-tab:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.folder-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.38);
+}
+
+/* Activa: más alta (elevada) y brillante con el acento de la zona */
+.folder-tab.is-active {
+  padding: 9px 14px 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 18%, rgba(10, 12, 24, 0.9)),
+    rgba(6, 7, 15, 0.8)
+  );
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.folder-tab.is-active:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.4),
+    0 0 22px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.folder-tab-index {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  color: rgba(238, 246, 255, 0.32);
+  transition: color 0.22s ease;
+}
+
+.folder-tab.is-active .folder-tab-index {
+  color: color-mix(in srgb, var(--accent) 75%, white);
+}
+
+.folder-tab-label {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: rgba(238, 246, 255, 0.55);
+  transition: color 0.22s ease;
+}
+
+.folder-tab:hover .folder-tab-label {
+  color: rgba(238, 246, 255, 0.9);
+}
+
+.folder-tab.is-active .folder-tab-label {
+  color: #fff;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Cursor de sub-menú en la esquina superior derecha de la pestaña */
+.folder-tab-caret {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 8px;
+  line-height: 1;
+  color: rgba(238, 246, 255, 0.3);
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+.folder-tab:hover .folder-tab-caret {
+  color: rgba(238, 246, 255, 0.7);
+}
+
+.folder-tab.is-active .folder-tab-caret {
+  color: var(--accent);
+}
+
+.folder-tab-caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* Pequeña línea de estado bajo la tira */
+.folder-tabs-hint {
+  margin: 8px 14px 0 0;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(238, 246, 255, 0.28);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------
+   Dropdown de sub-temas — se despliega DEBAJO de la pestaña.
+   z-index 80 (y el wrapper de la tira va en z-[70]) para que quede
+   SIEMPRE por encima de las tarjetas HUD (z-40) y del panel de
+   detalle (z-60). Antes quedaba tapado por las tarjetas HUD.
+   --------------------------------------------------------------- */
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  /* Pegado al borde derecho de la tira: cualquier pestaña que lo abra
+     deja el menú dentro de la pantalla. */
+  right: 0;
+  min-width: 210px;
+  max-width: min(260px, calc(100vw - 24px));
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 10%, rgba(10, 12, 24, 0.88)),
+    rgba(6, 7, 15, 0.7)
+  );
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow:
+    0 0 25px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 16px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  z-index: 80;
+  animation: dropdownSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Filo superior encendido: sustituye la flecha, que apuntaba a una pestaña
+   concreta y quedaba desalineada al anclar el menú a la tira completa. */
+.dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    transparent
+  );
+}
+
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  --accent: var(--cyan);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid transparent;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.dropdown-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 15%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, rgba(10, 12, 24, 0.8));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.dropdown-item:hover::before {
+  opacity: 1;
+}
+
+.dropdown-item[aria-selected="true"] {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, rgba(10, 12, 24, 0.9)), rgba(6, 7, 15, 0.9));
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  border-left-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1000px) {
+  .hud-overlay-card {
+    width: 260px;
+    padding: 16px 20px;
+  }
+
+  .hud-left {
+    left: 12px;
+    bottom: 12px;
+  }
+
+  .dossier-trigger {
+    top: 88px;
+    left: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hud-overlay-card {
+    width: min(320px, calc(100vw - 24px));
+    padding: 16px 18px;
+  }
+
+  .hud-left {
+    left: 12px;
+    bottom: 12px;
+  }
+
+  /* Pestañas más compactas para que quepan en pantallas angostas */
+  .folder-tabs {
+    max-width: 100vw;
+    padding: 8px 8px 0;
+  }
+
+  .folder-tab {
+    padding: 5px 10px 8px;
+  }
+
+  .folder-tab.is-active {
+    padding: 8px 10px 12px;
+  }
+
+  .dossier-backdrop {
+    padding: 12px;
+  }
+
+  .dossier-modal {
+    padding: 22px 18px 20px;
+    max-height: 84vh;
+  }
+
+  .dossier-title {
+    font-size: 21px;
+  }
+
+  .dossier-stat {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Muy angosto: solo queda el índice de la pestaña */
+  .folder-tab-label {
+    display: none;
+  }
+
+  .dossier-trigger {
+    top: 84px;
+    left: 12px;
+    letter-spacing: 0.18em;
+  }
+}
+
+/* ---------------------------------------------------------------
+   CURSOR AMBIENTAL — capa fija por encima de TODO (z-200, por encima
+   incluso del dossier z-90). No intercepta eventos: pointer-events none,
+   porque el cursor solo OBSERVA, no interactúa.
+
+   El color lo hereda de `--accent`, que CursorOverlay pinta según la
+   zona activa. Se transiciona para que al cambiar de pestaña el cursor
+   "cambie de piel" en vez de saltar de golpe.
+   --------------------------------------------------------------- */
+
+.cursor-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  /* Sin capa propia no podríamos ocultar el cursor nativo solo aquí */
+  contain: layout style;
+}
+
+/* Punto: el puntero real. Va clavado al ratón, sin retardo. */
+.cursor-dot {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px; /* centra el punto sobre la coordenada del ratón */
+  border-radius: 50%;
+  background: var(--accent, #00f0ff);
+  box-shadow:
+    0 0 8px var(--accent, #00f0ff),
+    0 0 18px color-mix(in srgb, var(--accent, #00f0ff) 55%, transparent);
+  opacity: 0;
+  /* Corto: debe sentirse pegado al puntero */
+  transition:
+    opacity 0.2s ease,
+    background-color 0.5s ease,
+    box-shadow 0.5s ease;
+  will-change: transform;
+}
+
+/* Anillo: persigue al punto con inercia (lerp en rAF, no en CSS). */
+.cursor-ring {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent, #00f0ff) 65%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--accent, #00f0ff) 25%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--accent, #00f0ff) 12%, transparent);
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    width 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    margin 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s ease,
+    box-shadow 0.5s ease,
+    border-radius 0.25s ease;
+  will-change: transform;
+}
+
+/* Estado "interactivo" (sobre un botón/enlace): el aro se convierte en
+   marco y se ensancha, como un bracket de HUD seleccionando un objetivo. */
+.cursor-ring[data-hover="on"] {
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 12px;
+  border-color: var(--accent, #00f0ff);
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--accent, #00f0ff) 45%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--accent, #00f0ff) 20%, transparent);
+}
+
+/* Solo ocultamos el cursor nativo donde hay puntero fino. En táctil el
+   cursor personalizado no se pinta (lo decide CursorOverlay) y aquí
+   dejamos el comportamiento del sistema intacto. */
+@media (pointer: fine) {
+  body,
+  a,
+  button,
+  [role="button"],
+  [role="menuitem"],
+  .folder-tab,
+  .dropdown-item,
+  .dossier-trigger,
+  .detail-close {
+    cursor: none;
+  }
+}
+
+/* Respeta la preferencia de movimiento reducido: sin anillo animado. */
+@media (prefers-reduced-motion: reduce) {
+  .cursor-ring {
+    display: none;
+  }
+}
+
+/* ===============================================================
+   CINE — capa común a intro y créditos (z-300, por encima del cursor)
+   =============================================================== */
+
+.cine-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fondo propio: la escena 3D sigue viva detrás, pero este acto manda. */
+  background:
+    radial-gradient(
+      ellipse at 50% 45%,
+      rgba(5, 6, 14, 0.55) 0%,
+      rgba(3, 3, 8, 0.94) 70%,
+      #030308 100%
+    );
+}
+
+/* Barras de cine: encapsulan el fotograma y hacen que cualquier texto
+   se lea como un título de película y no como un banner. */
+.cine-letterbox {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: clamp(34px, 7vh, 76px);
+  background: #000;
+  z-index: 310;
+  pointer-events: none;
+}
+
+.cine-letterbox--top {
+  top: 0;
+}
+
+.cine-letterbox--bottom {
+  bottom: 0;
+}
+
+/* Botón CTA principal de los actos cinematográficos */
+.cine-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 30px;
+  border: 1px solid color-mix(in srgb, var(--accent, #00f0ff) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #00f0ff) 10%, rgba(8, 10, 22, 0.7));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font-family: var(--hud-font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  cursor: pointer;
+  box-shadow:
+    0 0 26px color-mix(in srgb, var(--accent, #00f0ff) 25%, transparent),
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+  animation: cardIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cine-cta:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent, #00f0ff);
+  box-shadow:
+    0 0 38px color-mix(in srgb, var(--accent, #00f0ff) 45%, transparent),
+    0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+.cine-cta-glyph {
+  font-size: 10px;
+  color: var(--accent, #00f0ff);
+  text-shadow: 0 0 12px var(--accent, #00f0ff);
+}
+
+/* Botón secundario / salto */
+.cine-skip {
+  position: fixed;
+  top: calc(clamp(34px, 7vh, 76px) + 20px + var(--safe-top));
+  right: calc(24px + var(--safe-right));
+  z-index: 320;
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(8, 10, 22, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.62);
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  letter-spacing: 0.26em;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.cine-skip:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ===============================================================
+   INTRO
+   =============================================================== */
+
+.intro-layer {
+  --accent: #00f0ff;
+}
+
+.intro-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+/* Pila de beats: cada uno entra por debajo del anterior, así el bloque
+   crece hacia abajo y el conjunto se lee como un título que se escribe. */
+.intro-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-height: 190px;
+  justify-content: center;
+}
+
+.intro-beat {
+  animation: introBeat 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  white-space: nowrap;
+}
+
+.intro-beat--kicker {
+  font-family: var(--hud-font);
+  font-size: 10px;
+  letter-spacing: 0.55em;
+  color: color-mix(in srgb, var(--accent) 78%, white);
+  opacity: 0.9;
+}
+
+.intro-beat--title {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(30px, 7.2vw, 82px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 22px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 70px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.intro-beat--role {
+  font-family: var(--hud-font);
+  font-size: clamp(11px, 1.9vw, 16px);
+  letter-spacing: 0.42em;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.intro-beat--stack {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  letter-spacing: 0.34em;
+  color: color-mix(in srgb, var(--accent) 62%, white);
+}
+
+.intro-cta {
+  --accent: #00f0ff;
+  margin-top: 4px;
+}
+
+.intro-hint {
+  font-family: var(--hud-font);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 255, 255, 0.32);
+  animation: dotPulse 2.2s ease-in-out infinite;
+}
+
+/* Pista de progreso del título, al pie del letterbox inferior */
+.intro-progress {
+  position: fixed;
+  left: 50%;
+  bottom: calc(clamp(34px, 7vh, 76px) / 2 - 1px);
+  transform: translateX(-50%);
+  width: min(320px, 46vw);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.intro-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes introBeat {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* ===============================================================
+   CREDITS
+   =============================================================== */
+
+.credits-layer {
+  --accent: #00f0ff;
+  background: #030308;
+  display: block;
+}
+
+/* Viewport: crops the roll between the two letterbox bars.
+   Mask is fully opaque at bottom (credits enter fully visible),
+   fades to transparent at top (credits fade out as they exit). */
+.credits-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 90%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 90%,
+    transparent 100%
+  );
+}
+
+/* Wrapper centers horizontally; inner roll moves vertically only. */
+.credits-roll-wrapper {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(760px, 88vw);
+  transform: translateX(-50%);
+}
+
+/* Keyframes for credits roll animation */
+@keyframes creditsRoll {
+  from { transform: translateY(100%); }
+  to { transform: translateY(-100%); }
+}
+
+.credits-roll {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 64px;
+  padding-bottom: 8vh;
+  /* Start completely below viewport; JS animation moves to -100% */
+  transform: translateY(100%);
+  will-change: transform;
+  animation: creditsRoll 25s ease forwards;
+  animation-play-state: paused;
+}
+
+.credits-fin {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(46px, 11vw, 128px);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: #fff;
+  text-shadow:
+    0 0 26px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 0 80px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.credits-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.credits-heading {
+  font-family: var(--hud-font);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.5em;
+  color: color-mix(in srgb, var(--accent) 72%, white);
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.credits-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.credits-role {
+  font-family: var(--hud-font);
+  font-size: 9px;
+  letter-spacing: 0.34em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.credits-name {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(17px, 3vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.credits-sub {
+  font-family: var(--hud-font);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--accent) 68%, white);
+}
+
+.credits-section--end {
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.credits-thanks {
+  font-family: var(--hud-font);
+  font-size: 12px;
+  letter-spacing: 0.5em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.credits-year {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #fff;
+  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* After the roll ends: fade to black, then show closing actions */
+.credits-end {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(3, 3, 8, 0.92);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+
+.credits-end.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Fade-to-black overlay: covers screen after roll ends */
+.credits-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 315;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2s ease;
+}
+
+.credits-fade.is-fading {
+  opacity: 0.5;
+}
+
+.credits-fade.is-opaque {
+  opacity: 1;
+}
+
+.credits-back {
+  position: static;
+  margin-top: 4px;
+}
+
+/* ===============================================================
+   CINEMA CONTROLS (GUIDED MODE / END CREDITS)
+   =============================================================== */
+
+.cine-controls {
+  position: fixed;
+  bottom: calc(22px + var(--safe-bottom));
+  left: 50%;
+  /* Centrado con la propiedad `translate`, no con `transform`: la
+     animación cardIn escribe `transform` en cada frame y borraría el
+     -50% (mismo conflicto que el DetailPanel con Framer Motion). */
+  translate: -50% 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-radius: 999px;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 8%, rgba(10, 12, 24, 0.72)),
+    rgba(6, 7, 15, 0.5)
+  );
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.45);
+  animation: cardIn 0.9s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cine-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 72%, white);
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.cine-btn:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #fff;
+}
+
+/* "Live" state: button lights up like a REC indicator */
+.cine-btn.is-live {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.cine-btn-glyph {
+  font-size: 8px;
+  color: var(--accent);
+}
+
+.cine-divider {
+  width: 1px;
+  height: 16px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ===============================================================
+   GUIDED MODE HUD (shot counter bar)
+   =============================================================== */
+
+.tour-hud {
+  position: fixed;
+  bottom: calc(26px + var(--safe-bottom));
+  left: 50%;
+  translate: -50% 0;
+  z-index: 85;
+  max-width: calc(100vw - 24px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  background: rgba(6, 7, 15, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 20%, transparent);
+  animation: cardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tour-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff2d55;
+  box-shadow: 0 0 9px #ff2d55;
+  animation: dotPulse 1.1s ease-in-out infinite;
+}
+
+.tour-label {
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
+  color: #fff;
+}
+
+.tour-step {
+  font-family: var(--hud-font);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--accent) 75%, white);
+  padding-left: 12px;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.tour-stop {
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 72%, white);
+  font-family: var(--hud-font);
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.tour-stop:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: #fff;
+}
+
+/* ===============================================================
+   RESPONSIVE + MOVIMIENTO REDUCIDO
+   =============================================================== */
+
+@media (max-width: 760px) {
+  .cine-controls {
+    top: auto;
+    bottom: 18px;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .cine-btn {
+    font-size: 8.5px;
+    letter-spacing: 0.16em;
+    padding: 6px 10px;
+  }
+
+  .cine-divider {
+    display: none;
+  }
+
+  .tour-hud {
+    bottom: 76px;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .intro-beat {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sin rodillo de créditos: se muestra el bloque final directamente */
+  .credits-roll {
+    animation: none;
+    position: static;
+    transform: none;
+    gap: 40px;
+    padding-top: 16vh;
+  }
+
+  .credits-viewport {
+    overflow-y: auto;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .cine-cta,
+  .cine-controls,
+  .tour-hud,
+  .intro-beat {
+    animation: none;
+  }
+}
+
+/* ===============================================================
+   DIGITAL TWIN (zona 5) — HUD, panel contextual y stats
+   =============================================================== */
+
+/* --- Stats de drei (stats.js): se posiciona bajo las pestañas ---
+   stats.js inyecta estilos inline (position fixed, top/left 0), por eso
+   hace falta !important y specificity alta. */
+.city-stats {
+  position: fixed !important;
+  top: 104px !important;
+  right: 12px !important;
+  left: auto !important;
+  z-index: 71 !important;
+  opacity: 0.85;
+  border-radius: 6px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.city-stats canvas {
+  display: block;
+}
+
+/* --- HUD superior-izquierdo del Digital Twin --- */
+/* OJO: el botón ZONE DOSSIER vive en top:96px/left:24px, así que el HUD
+   empieza por debajo (148px) para no solaparse con él. */
+.city-hud {
+  --accent: #00ff88;
+  position: fixed;
+  top: calc(148px + var(--safe-top));
+  left: calc(24px + var(--safe-left));
+  z-index: 45;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  min-width: 240px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 9%, rgba(10, 12, 24, 0.78)),
+    rgba(6, 7, 15, 0.55)
+  );
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.city-hud-title {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff;
+  text-shadow:
+    0 0 10px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 0 30px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.city-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.city-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+}
+
+.city-status--ok {
+  color: var(--accent);
+}
+.city-status--warn {
+  color: #ffcc00;
+}
+.city-status--crit {
+  color: #ff0055;
+}
+
+.city-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  animation: dotPulse 1.6s ease-in-out infinite;
+}
+
+.city-hud-meta {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgba(238, 246, 255, 0.55);
+}
+
+.city-fps {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.city-meta-sep {
+  color: rgba(238, 246, 255, 0.25);
+}
+
+.city-hud-hint {
+  margin-top: 2px;
+  font-size: 8.5px;
+  letter-spacing: 0.26em;
+  color: rgba(238, 246, 255, 0.32);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+
+/* --- Panel contextual del edificio (lateral derecho) --- */
+.building-panel {
+  --accent: #00ff88;
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  /* `translate` (propiedad independiente) centra en vertical sin tocar
+     `transform`, que es donde Framer Motion escribe su animación `x`. */
+  translate: 0 -50%;
+  z-index: 65;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: 78vh;
+  overflow-y: auto;
+  padding: 22px 22px 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 14px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 10%, rgba(10, 12, 24, 0.92)),
+    rgba(6, 7, 15, 0.78)
+  );
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow:
+    0 0 40px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 100px color-mix(in srgb, var(--accent) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 60px rgba(0, 0, 0, 0.6);
+}
+
+.building-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.building-panel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+.building-panel::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 3px;
+}
+
+.bp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bp-kicker {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  opacity: 0.9;
+}
+
+.bp-id {
+  margin: 4px 0 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.bp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.bp-label {
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  color: rgba(238, 246, 255, 0.5);
+}
+
+.bp-value {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.bp-value--dim {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(238, 246, 255, 0.45);
+  text-shadow: none;
+}
+
+/* Badge de estado */
+.bp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  border: 1px solid currentColor;
+}
+
+.bp-status--normal {
+  color: #00ff88;
+  background: color-mix(in srgb, #00ff88 12%, transparent);
+}
+.bp-status--high-energy {
+  color: #00f0ff;
+  background: color-mix(in srgb, #00f0ff 12%, transparent);
+}
+.bp-status--alert {
+  color: #ff0055;
+  background: color-mix(in srgb, #ff0055 14%, transparent);
+}
+
+.bp-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+}
+
+.bp-block {
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bp-block .bp-row {
+  padding-top: 0;
+}
+
+/* Barra de energía */
+.bp-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(238, 246, 255, 0.09);
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.bp-bar-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  transform-origin: left;
+  box-shadow: 0 0 10px currentColor;
+}
+
+/* Mini gráfico SVG */
+.bp-chart {
+  display: block;
+  width: 100%;
+  height: 64px;
+  margin-top: 4px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Botón reset */
+.bp-reset {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, rgba(8, 10, 22, 0.7));
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.bp-reset:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.bp-reset:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+/* --- Responsive Digital Twin --- */
+@media (max-width: 900px) {
+  .city-hud {
+    top: 88px;
+    left: 12px;
+    min-width: 0;
+    padding: 11px 14px;
+  }
+
+  .building-panel {
+    right: 12px;
+    width: min(340px, calc(100vw - 24px));
+    max-height: 70vh;
+  }
+
+  .city-stats {
+    top: 88px !important;
+    right: 8px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .city-hud-title {
+    font-size: 11px;
+  }
+
+  .city-hud-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-status-dot,
+  .city-hud-hint {
+    animation: none;
+  }
+}
+
+/* ===============================================================
+   DETAIL PANEL (reutilizable, desliza desde la derecha)
+   =============================================================== */
+
+.detail-panel {
+  --accent: var(--cyan);
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  /* Igual que el panel del edificio: centrado con `translate`, no con
+     `transform`, para no anular la animación de Framer Motion. */
+  translate: 0 -50%;
+  z-index: 65;
+  width: 380px;
+  max-width: calc(100vw - 48px);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px 24px 20px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 9%, rgba(10, 12, 24, 0.75)),
+    rgba(6, 7, 15, 0.55)
+  );
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 14px;
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 0 80px color-mix(in srgb, var(--accent) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 48px rgba(0, 0, 0, 0.6);
+  user-select: text;
+}
+
+.detail-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    transparent
+  );
+  opacity: 0.7;
+}
+
+.dp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dp-kicker {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  opacity: 0.9;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  text-transform: uppercase;
+}
+
+.dp-title {
+  margin: 4px 0 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dp-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dp-close:hover {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent);
+}
+
+.dp-divider {
+  height: 1px;
+  width: 100%;
+  margin: 16px 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 80%, transparent),
+    transparent
+  );
+  opacity: 0.7;
+}
+
+.dp-description {
+  margin: 0 0 20px;
+}
+
+.dp-description p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(238, 246, 255, 0.85);
+  font-weight: 400;
+}
+
+.dp-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.dp-metric {
+  background: color-mix(in srgb, var(--accent) 12%, rgba(10, 12, 24, 0.8));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 2px solid var(--accent);
+  color: var(--accent);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  font-family: 'JetBrains Mono', monospace;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.dp-metric:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dp-extra {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Responsive Detail Panel */
+@media (max-width: 900px) {
+  .detail-panel {
+    right: 12px;
+    width: min(380px, calc(100vw - 24px));
+    max-height: 70vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .detail-panel {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    padding: 18px 18px 16px;
+  }
+
+  .dp-title {
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel {
+    animation: none;
+  }
+}
+
+/* ===============================================================
+   PRODUCT CONFIGURATOR — UI scroll-driven
+   Antes vivía en estilos inline; ahora es CSS para que las media
+   queries puedan recolocarla en vertical y landscape.
+   =============================================================== */
+
+/* El HUD no puede capturar la rueda/touch: ScrollControls vive debajo,
+   dentro del canvas, y es quien mueve las 4 páginas del configurador. */
+.product-scroll-container {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.product-progress-bar {
+  position: fixed;
+  right: calc(24px + var(--safe-right));
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 60vh;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.product-progress-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--accent, #ff5500);
+  border-radius: 2px;
+  transform-origin: top;
+}
+
+.product-section {
+  position: fixed;
+  left: 60px;
+  top: clamp(150px, calc(50vh - 155px), calc(100vh - 440px));
+  max-width: 460px;
+  pointer-events: none;
+  z-index: 55;
+}
+
+.product-kicker {
+  margin-bottom: 12px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--accent, #ff5500);
+}
+
+.product-title {
+  margin-bottom: 16px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--product-text, #f4f7ff);
+}
+
+/* Pista de scroll de la primera página: el scroll nativo de ScrollControls
+   no tiene barra visible, así que la affordance vive aquí. */
+.product-scroll-cue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  font-family: var(--hud-font);
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.product-scroll-cue-line {
+  width: 34px;
+  height: 1px;
+  background: var(--accent, #ff5500);
+  box-shadow: 0 0 10px var(--accent, #ff5500);
+  transform-origin: left;
+  animation: scrollCue 1.9s ease-in-out infinite;
+}
+
+@keyframes scrollCue {
+  0%, 100% { transform: scaleX(0.35); opacity: 0.35; }
+  50% { transform: scaleX(1); opacity: 1; }
+}
+
+.product-preorder-btn {
+  position: fixed;
+  right: calc(60px + var(--safe-right));
+  bottom: calc(96px + var(--safe-bottom));
+  z-index: 65;
+  /* El contenedor del HUD deja pasar rueda/touch; el botón sí es pulsable. */
+  pointer-events: auto;
+  padding: 18px 40px;
+  border: none;
+  border-radius: 999px;
+  color: #0a0a0a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* La tira de pestañas respeta el notch sin despegarse del borde. */
+.nav-shell {
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+}
+
+/* ===============================================================
+   RESPONSIVE MULTI-DISPOSITIVO
+   Desktop > 900 · Tablet 641-900 · Móvil ≤ 640
+   =============================================================== */
+
+/* Tableta y ventanas estrechas: el lockup completo (logo + nombre) no
+   cabe junto a las pestañas, así que queda sólo el logo. El nombre
+   reaparece por encima de 1024px. */
+@media (max-width: 1024px) {
+  .app-header {
+    gap: 0;
+    padding: calc(14px + var(--safe-top)) 16px 16px calc(14px + var(--safe-left));
+  }
+
+  .app-header-copy {
+    display: none;
+  }
+
+  .app-logo {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 900px) {
+  .hud-left {
+    left: calc(12px + var(--safe-left));
+    bottom: calc(12px + var(--safe-bottom));
+  }
+
+  .dossier-trigger {
+    top: calc(88px + var(--safe-top));
+    left: calc(16px + var(--safe-left));
+  }
+
+  /* Debajo del dossier (top 88 + 44 de alto), no encima. */
+  .city-hud {
+    top: calc(136px + var(--safe-top));
+    left: calc(16px + var(--safe-left));
+    min-width: 0;
+    max-width: calc(100vw - 28px - var(--safe-left));
+  }
+
+  /* En tablet el pill de cine pasa a la esquina inferior derecha; así
+     no se cruza con la tarjeta héroe (abajo izquierda). */
+  .cine-controls {
+    left: auto;
+    right: calc(12px + var(--safe-right));
+    translate: none;
+    bottom: calc(12px + var(--safe-bottom));
+  }
+
+  /* En modo guiado el pill de cine está oculto: no hace falta subirlo. */
+  .tour-hud {
+    bottom: calc(16px + var(--safe-bottom));
+  }
+
+  .product-section {
+    left: 24px;
+    max-width: min(440px, calc(100vw - 48px));
+  }
+
+  .product-preorder-btn {
+    right: calc(24px + var(--safe-right));
+    bottom: calc(84px + var(--safe-bottom));
+  }
+
+  .product-progress-bar {
+    right: calc(12px + var(--safe-right));
+  }
+}
+
+@media (max-width: 768px) {
+  /* Sólo la pestaña activa conserva su nombre; las demás muestran el
+     índice. Con seis etiquetas la tira no cabe por debajo de 768. */
+  .folder-tab-label {
+    display: none;
+  }
+
+  .folder-tab.is-active .folder-tab-label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  .folder-tab {
+    justify-content: center;
+    min-width: 40px;
+  }
+
+  .folder-tabs {
+    max-width: calc(100vw - var(--safe-left) - var(--safe-right));
+  }
+
+  .folder-tabs-hint {
+    display: none;
+  }
+
+  .dropdown-menu {
+    min-width: min(240px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: min(70dvh, 420px);
+    overflow-y: auto;
+  }
+
+  .dossier-backdrop {
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  }
+
+  .dossier-modal {
+    max-height: calc(100dvh - 24px - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .intro-stage {
+    padding-left: calc(20px + var(--safe-left));
+    padding-right: calc(20px + var(--safe-right));
+  }
+
+  .credits-roll-wrapper {
+    width: min(760px, 92vw);
+  }
+
+  .credits-thanks {
+    letter-spacing: 0.34em;
+  }
+
+  .credits-year {
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* En móvil el logo es toda la marca: se compacta para no rozar la
+     tira de pestañas, que arranca en el borde derecho. */
+  .app-header {
+    padding: calc(12px + var(--safe-top)) 12px 12px calc(12px + var(--safe-left));
+  }
+
+  .app-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* La tarjeta héroe es decorativa (aria-hidden). En un móvil se come
+     el tercio inferior: el dossier ya ofrece los mismos datos. */
+  .hud-overlay-card {
+    display: none;
+  }
+
+  .cine-controls {
+    left: 50%;
+    right: auto;
+    translate: -50% 0;
+  }
+
+  .dossier-trigger {
+    top: calc(84px + var(--safe-top));
+    left: calc(12px + var(--safe-left));
+  }
+
+  .city-hud {
+    top: calc(136px + var(--safe-top));
+    left: calc(12px + var(--safe-left));
+    padding: 10px 12px;
+  }
+
+  /* Paneles laterales → hoja inferior, por encima del pill de cine. */
+  .detail-panel,
+  .building-panel {
+    top: auto;
+    bottom: calc(76px + var(--safe-bottom));
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: 60dvh;
+    translate: none;
+  }
+
+  /* El texto del Configurator baja al tercio inferior; la cámara ya
+     encuadra el dron en la mitad superior. */
+  .product-section {
+    top: auto;
+    bottom: calc(148px + var(--safe-bottom));
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+
+  .product-kicker {
+    margin-bottom: 10px;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+  }
+
+  .product-title {
+    margin-bottom: 0;
+    font-size: clamp(24px, 7.4vw, 34px);
+  }
+
+  .product-progress-bar {
+    right: calc(8px + var(--safe-right));
+    top: 22%;
+    translate: none;
+    height: 30dvh;
+  }
+
+  .product-preorder-btn {
+    left: 16px;
+    right: 16px;
+    bottom: calc(76px + var(--safe-bottom));
+    padding: 16px 24px;
+    font-size: 12px;
+  }
+
+  .intro-stack {
+    min-height: 150px;
+    gap: 10px;
+  }
+
+  .intro-stage {
+    gap: 20px;
+  }
+
+  .credits-thanks {
+    font-size: 11px;
+    letter-spacing: 0.26em;
+  }
+
+  .credits-year {
+    font-size: 28px;
+    letter-spacing: 0.2em;
+  }
+
+  .tour-hud {
+    gap: 7px;
+    padding: 8px 10px;
+  }
+
+  .tour-label {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .intro-beat--title {
+    font-size: clamp(24px, 7.4vw, 34px);
+  }
+
+  .intro-beat--kicker {
+    letter-spacing: 0.36em;
+  }
+
+  .dossier-trigger {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+  }
+
+  .city-hud-title {
+    font-size: 11px;
+  }
+
+  .city-hud-hint {
+    display: none;
+  }
+}
+
+/* 381-430px: la etiqueta activa ensancha la tira hasta el logo. Se
+   sacrifica la etiqueta antes que la marca; los índices y el dossier
+   siguen identificando la zona. */
+@media (max-width: 430px) {
+  .folder-tab.is-active .folder-tab-label {
+    display: none;
+  }
+}
+
+/* A 320-380px el logo y las pestañas se compactan al máximo. */
+@media (max-width: 380px) {
+  .app-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .folder-tab {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .folder-tab.is-active {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .dossier-trigger {
+    font-size: 8.5px;
+    letter-spacing: 0.1em;
+  }
+}
+
+/* Móvil en horizontal / ventanas bajas: el eje vertical es el escaso. */
+@media (max-height: 520px) {
+  /* Aviso decorativo: en landscape bajo choca con el texto del producto
+     y con el panel de detalle. Es lo primero que se sacrifica. */
+  .folder-tabs-hint {
+    display: none;
+  }
+
+  .intro-stack {
+    min-height: 110px;
+    gap: 8px;
+  }
+
+  .intro-stage {
+    gap: 14px;
+  }
+
+  .intro-beat--title {
+    font-size: clamp(22px, 7vh, 40px);
+  }
+
+  .intro-beat--stack {
+    margin-top: 0;
+    padding-top: 4px;
+    border-top: none;
+  }
+
+  .intro-progress {
+    display: none;
+  }
+
+  .cine-letterbox {
+    height: clamp(20px, 5vh, 40px);
+  }
+
+  .credits-roll {
+    gap: 36px;
+  }
+}
+
+@media (max-height: 480px) {
+  /* El HUD de la ciudad es el primero que se sacrifica: el panel del
+     edificio sigue dando todos los datos al tocar uno. */
+  .city-hud {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) and (min-width: 641px) {
+  /* Landscape ancho y bajo: el panel centrado verticalmente choca con
+     las pestañas (arriba) y el pill de cine (abajo). Se acota su alto
+     y se ancla bajo la barra de navegación. */
+  .detail-panel,
+  .building-panel {
+    max-height: 52dvh;
+    translate: 0 0;
+    top: calc(76px + var(--safe-top));
+    bottom: auto;
+  }
+
+  /* Landscape ancho: el texto del producto se va arriba a la derecha,
+     lejos del dossier (izquierda) y de la tarjeta héroe (abajo). */
+  .product-section {
+    top: calc(76px + var(--safe-top));
+    bottom: auto;
+    left: auto;
+    right: calc(72px + var(--safe-right));
+    max-width: 42vw;
+    text-align: right;
+  }
+
+  .product-title {
+    font-size: clamp(20px, 4vw, 30px);
+    margin-bottom: 0;
+  }
+
+  .product-kicker {
+    margin-bottom: 8px;
+  }
+
+  .product-preorder-btn {
+    padding: 12px 24px;
+    bottom: calc(72px + var(--safe-bottom));
+  }
+}
+
+/* Tablets en vertical: el texto se ancla arriba a la izquierda y el dron
+   queda centrado por debajo. Antes el bloque (centrado) se cruzaba con el
+   modelo y la última línea se leía sobre el naranja. */
+@media (min-width: 641px) and (orientation: portrait) {
+  .product-section {
+    top: calc(150px + var(--safe-top));
+    bottom: auto;
+  }
+}
+
+/* ===============================================================
+   TÁCTIL — objetivos de 40-48px (antes había cierres de 28px)
+   =============================================================== */
+
+@media (pointer: coarse) {
+  .detail-close,
+  .dp-close {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+  }
+
+  .detail-close {
+    top: 8px;
+    right: 10px;
+  }
+
+  .folder-tab {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .dossier-trigger {
+    min-height: 44px;
+  }
+
+  .cine-btn {
+    min-height: 40px;
+  }
+
+  .cine-skip,
+  .tour-stop {
+    min-height: 38px;
+  }
+
+  .cine-cta {
+    min-height: 48px;
+  }
+
+  .bp-reset {
+    min-height: 46px;
+  }
+
+  .product-preorder-btn {
+    min-height: 48px;
+  }
+}

@@ -1,0 +1,21 @@
+# Dependencias y build
+node_modules/
+dist/
+.vite/
+
+# Logs y artefactos locales
+*.log
+dev.log
+
+# Entorno / secretos
+.env
+.env.*
+!.env.example
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Scripts de auditoría y notas internas de sesión
+resp-verify.mjs
+AGENTS_LAST_SESSION.md
