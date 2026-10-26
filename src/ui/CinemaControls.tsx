@@ -30,6 +30,7 @@ export default function CinemaControls() {
   if (guided) return null
 
   const accent = ZONES[activeZone].accent
+  const accentText = ZONES[activeZone].accentText
 
   const startCredits = () => {
     // Cleanup first: credits must start from a clean stage.
@@ -42,7 +43,12 @@ export default function CinemaControls() {
   return (
     <div
       className="cine-controls"
-      style={{ ['--accent' as string]: accent } as React.CSSProperties}
+      style={
+        {
+          ['--accent' as string]: accent,
+          ['--accent-text' as string]: accentText,
+        } as React.CSSProperties
+      }
       role="group"
       aria-label="Presentation controls"
     >

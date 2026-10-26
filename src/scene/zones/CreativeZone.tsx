@@ -1,454 +1,403 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import type { ThreeEvent } from '@react-three/fiber'
+import { Html, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { ZoneConfig } from '../../config/zones'
+import {
+  CREATIVE_FOCUS_YAW,
+  CREATIVE_MODEL_BASE_Y,
+  CREATIVE_MODEL_HEIGHT,
+  CREATIVE_OBJECTS,
+  CREATIVE_ZONE_INDEX,
+  isCreativeObjectId,
+} from '../../config/creativeLayout'
+import type { CreativeObjectId } from '../../config/creativeLayout'
+import { useExperienceStore } from '../../store/useExperienceStore'
+import { getSubSectionContent } from '../../data/portfolioContent'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 
-/** Acento frío secundario (cian) para contraste con el acento rojo/magenta de la zona. */
+/** Acento frío secundario (cian) para contrastar con el rojo/magenta de la zona. */
 const CYAN = '#00f0ff'
+
+/** Separación del pin respecto al borde superior de la pieza. */
+const PIN_LIFT = 0.42
+
+const MODEL_URL = '/models/creative.glb'
+
+/**
+ * El GLB viene normalizado desde `models/Creative.glb`:
+ * 4.4 × 2.77 × 4.4, centrado en XZ y con la base en y = 0.
+ * Aquí sólo se apoya sobre el suelo local de la zona.
+ */
+const MODEL_BASE_Y = CREATIVE_MODEL_BASE_Y
+const MODEL_HEIGHT = CREATIVE_MODEL_HEIGHT
+const MODEL_CENTER_Y = MODEL_BASE_Y + MODEL_HEIGHT / 2
+
+/** Giro de vitrina: una vuelta completa tarda ~70 s. */
+const TURNTABLE_SPEED = 0.09
+const FLOAT_AMPLITUDE = 0.035
+const FLOAT_SPEED = 0.55
+const TICK_COUNT = 40
+const TICK_RADIUS = 3.16
 
 /**
  * Zone 3 — Creative 3D (acento rojo/magenta #ff0055)
- * "MODELADO 3D + DATOS" — modelado 3D en curso + visualización de datos
- * para páginas web e informes empresariales.
+ * "MODELADO 3D + DATOS".
  *
- * - CENTRO: TorusKnot en wireframe sobre un pedestal, con una nube de puntos
- *   superpuesta en sus mismos vértices (lee como "malla en edición").
- * - ALREDEDOR: primitivas de datos flotantes → gráfico de BARRAS wireframe,
- *   gráfico de TORTA (segmentos de cilindro) y gráfico de LÍNEAS (lineSegments
- *   dentado) sobre un panel wireframe.
- * - REJILLA-SUELO pequeña bajo el modelo + chispas de datos orbitando.
+ * El diorama industrial es el protagonista: un GLB de 1.808 piezas que se
+ * optimizó a 45 InstancedMesh (EXT_mesh_gpu_instancing) y 600 KB. Se monta
+ * en una vitrina holográfica: base de rejilla, dos aros neón y ticks de datos
+ * orbitando, con luces de acento para integrarlo en la paleta de la escena.
  *
- * Todo centrado en el origen local (el padre aplica `position={zone.position}`),
- * dentro de radio ~3.5 y por encima de y=-1.9 (donde está la rejilla-suelo global).
+ * El GLB se carga en cuanto la zona se visita por primera vez y se queda
+ * montado al salir: así el vuelo de salida no lo hace desaparecer de golpe
+ * (el laboratorio de Testing sí puede desmontarse porque su vuelo arranca
+ * desde otra posición; aquí el diorama ocupa todo el encuadre).
  */
 export default function CreativeZone({ zone }: { zone: ZoneConfig }) {
-  // Grupos con animación
-  const floatRef = useRef<THREE.Group>(null)            // flotación suave de todo el conjunto
-  const modelRef = useRef<THREE.Group>(null)            // modelo sobre plato giratorio
-  const barsRef = useRef<THREE.Mesh[]>([])              // barras del gráfico de barras
-  const pieRef = useRef<THREE.Group>(null)              // gráfico de torta
-  const lineMatRef = useRef<THREE.LineBasicMaterial>(null) // material del gráfico de líneas
-  const dataPointsRef = useRef<THREE.Points>(null)      // vértices destacados de la línea
-  const sparksRef = useRef<THREE.Points>(null)          // chispas de datos orbitando
+  const activeZone = useExperienceStore((s) => s.activeZone)
+  const [armed, setArmed] = useState(false)
+  const reducedMotion = useReducedMotion()
 
-  // Nivel base donde "apoyan" las barras (siempre por encima de la rejilla global)
-  const BAR_BASE_Y = -0.9
+  useEffect(() => {
+    if (activeZone === CREATIVE_ZONE_INDEX) setArmed(true)
+  }, [activeZone])
 
-  // ---------------------------------------------------------------
-  // Geometría del modelo central: TorusKnot reutilizado por mesh + points
-  // (los puntos se superponen exactamente en los vértices de la malla)
-  // ---------------------------------------------------------------
-  const modelGeo = useMemo(() => new THREE.TorusKnotGeometry(0.7, 0.24, 96, 12), [])
-
-  // ---------------------------------------------------------------
-  // Datos del gráfico de barras (alturas distintas + fase de animación)
-  // ---------------------------------------------------------------
-  const barData = useMemo(() => [
-    { height: 0.6, speed: 1.1, phase: 0.0 },
-    { height: 1.2, speed: 1.4, phase: 1.3 },
-    { height: 0.9, speed: 0.9, phase: 2.6 },
-    { height: 1.5, speed: 1.7, phase: 3.9 },
-  ], [])
-
-  // ---------------------------------------------------------------
-  // Segmentos del gráfico de torta (arcos de cilindro: thetaStart + thetaLength)
-  // ---------------------------------------------------------------
-  const pieSegments = useMemo(() => {
-    const raw = [
-      { portion: 0.35, color: zone.accent },
-      { portion: 0.25, color: CYAN },
-      { portion: 0.22, color: '#ffffff' },
-      { portion: 0.18, color: '#ff88aa' },
-    ]
-    let start = 0
-    return raw.map((seg) => {
-      const length = seg.portion * Math.PI * 2
-      const item = { start, length, color: seg.color }
-      start += length
-      return item
-    })
-  }, [zone.accent])
-
-  // ---------------------------------------------------------------
-  // Trayecto dentado del gráfico de líneas (segmentos + vértices)
-  // ---------------------------------------------------------------
-  const { lineSegmentPositions, lineVertexPositions } = useMemo(() => {
-    const pts: [number, number, number][] = [
-      [-1.05, -0.35, 0],
-      [-0.7, 0.05, 0],
-      [-0.35, -0.2, 0],
-      [0.0, 0.3, 0],
-      [0.35, -0.05, 0],
-      [0.7, 0.38, 0],
-      [1.05, 0.12, 0],
-    ]
-    const segs: number[] = []
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i]
-      const b = pts[i + 1]
-      if (!a || !b) continue
-      segs.push(a[0], a[1], a[2], b[0], b[1], b[2])
-    }
-    const verts: number[] = []
-    pts.forEach((p) => verts.push(p[0], p[1], p[2]))
-    return {
-      lineSegmentPositions: new Float32Array(segs),
-      lineVertexPositions: new Float32Array(verts),
-      lineVertexCount: pts.length,
-    }
-  }, [])
-
-  // ---------------------------------------------------------------
-  // Chispas de datos orbitando alrededor del conjunto
-  // ---------------------------------------------------------------
-  const SPARK_COUNT = 36
-  const { sparkPositions, sparkColors, sparkPhases } = useMemo(() => {
-    const positions = new Float32Array(SPARK_COUNT * 3)
-    const colors = new Float32Array(SPARK_COUNT * 3)
-    const phases = new Float32Array(SPARK_COUNT)
-    const accent = new THREE.Color(zone.accent)
-    const cyan = new THREE.Color(CYAN)
-
-    for (let i = 0; i < SPARK_COUNT; i++) {
-      const angle = (i / SPARK_COUNT) * Math.PI * 2
-      const radius = 2.2 + Math.random() * 0.9       // nunca pasa de ~3.1 de radio
-      const height = (Math.random() - 0.5) * 1.6
-
+  // Ticks de datos sobre el aro: un único draw call.
+  const tickPositions = useMemo(() => {
+    const positions = new Float32Array(TICK_COUNT * 3)
+    for (let i = 0; i < TICK_COUNT; i++) {
+      const angle = (i / TICK_COUNT) * Math.PI * 2
+      const radius = TICK_RADIUS + (i % 2 === 0 ? 0.05 : -0.05)
       positions[i * 3] = Math.cos(angle) * radius
-      positions[i * 3 + 1] = height
+      positions[i * 3 + 1] = 0
       positions[i * 3 + 2] = Math.sin(angle) * radius
-
-      // Mezcla cian ↔ acento para leer como "datos"
-      const c = accent.clone().lerp(cyan, Math.random())
-      colors[i * 3] = c.r
-      colors[i * 3 + 1] = c.g
-      colors[i * 3 + 2] = c.b
-
-      phases[i] = Math.random() * Math.PI * 2
     }
-    return { sparkPositions: positions, sparkColors: colors, sparkPhases: phases }
-  }, [zone.accent])
-
-  // ---------------------------------------------------------------
-  // Animación principal
-  // ---------------------------------------------------------------
-  useFrame((state, delta) => {
-    const t = state.clock.elapsedTime
-
-    // Flotación suave de todo el conjunto (efecto "suspendido")
-    if (floatRef.current) {
-      floatRef.current.position.y = Math.sin(t * 0.6) * 0.12
-      floatRef.current.rotation.z = Math.sin(t * 0.4) * 0.02
-    }
-
-    // Modelo girando en su plato giratorio + balanceo en X
-    if (modelRef.current) {
-      modelRef.current.rotation.y += delta * 0.5
-      modelRef.current.rotation.x = Math.sin(t * 0.5) * 0.15
-    }
-
-    // Barras creciendo / cambiando de altura (base siempre apoyada)
-    barsRef.current.forEach((mesh, i) => {
-      if (!mesh) return
-      const bar = barData[i]
-      if (!bar) return
-      const wave = 0.5 + 0.5 * Math.sin(t * bar.speed + bar.phase)
-      const h = bar.height * (0.55 + 0.45 * wave)
-      mesh.scale.y = h
-      mesh.position.y = BAR_BASE_Y + h / 2
-    })
-
-    // Torta girando despacio
-    if (pieRef.current) {
-      pieRef.current.rotation.y = t * 0.45
-    }
-
-    // Pulso del gráfico de líneas + bob de sus vértices
-    if (lineMatRef.current) {
-      lineMatRef.current.opacity = 0.55 + Math.sin(t * 2.2) * 0.25
-    }
-    if (dataPointsRef.current) {
-      const s = 1 + Math.sin(t * 3) * 0.25
-      dataPointsRef.current.scale.setScalar(s)
-    }
-
-    // Chispas de datos orbitando en espiral suave
-    if (sparksRef.current) {
-      const geo = sparksRef.current.geometry
-      const posAttr = geo.attributes.position as THREE.BufferAttribute
-      const arr = posAttr.array as Float32Array
-      for (let i = 0; i < SPARK_COUNT; i++) {
-        const phase = sparkPhases[i] ?? 0
-        const radius = 2.2 + 0.5 * Math.sin(t * 0.4 + phase)
-        const angle = t * 0.25 + phase
-        arr[i * 3] = Math.cos(angle) * radius
-        arr[i * 3 + 2] = Math.sin(angle) * radius
-        arr[i * 3 + 1] = (arr[i * 3 + 1] ?? 0) * 0.95 + Math.sin(t * 1.2 + phase) * 0.02
-      }
-      posAttr.needsUpdate = true
-    }
-  })
+    return positions
+  }, [])
 
   return (
     <group position={zone.position}>
-      {/* Raíz animada: flotación suave de todo el conjunto */}
-      <group ref={floatRef}>
+      {/* Vitrina: rejilla y aros quedan fijos; el diorama flota por encima. */}
+      <gridHelper args={[6.4, 16, zone.accent, '#441122']} position={[0, -1.4, 0]} />
 
-        {/* =====================================================
-            REJILLA-SUELO + PEDESTAL DEL MODELO
-            ===================================================== */}
-        <gridHelper
-          args={[4.4, 12, zone.accent, '#441122']}
-          position={[0, -1.05, 0]}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.37, 0]}>
+        <ringGeometry args={[2.72, 3.28, 96]} />
+        <meshBasicMaterial
+          color={zone.accent}
+          transparent
+          opacity={0.12}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
+      </mesh>
 
-        {/* Pedestal: disco con borde neón */}
-        <mesh position={[0, -0.92, 0]}>
-          <cylinderGeometry args={[0.9, 1.0, 0.14, 24]} />
-          <meshStandardMaterial
-            color="#150409"
-            metalness={0.9}
-            roughness={0.25}
-            emissive={zone.accent}
-            emissiveIntensity={0.15}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.36, 0]}>
+        <torusGeometry args={[3.16, 0.018, 8, 128]} />
+        <meshBasicMaterial
+          color={zone.accent}
+          transparent
+          opacity={0.65}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.36, 0]}>
+        <torusGeometry args={[2.76, 0.012, 8, 128]} />
+        <meshBasicMaterial
+          color={CYAN}
+          transparent
+          opacity={0.35}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <DataTicks positions={tickPositions} accent={zone.accent} reducedMotion={reducedMotion} />
+
+      <Suspense fallback={<LoadingCage accent={zone.accent} />}>
+        {armed && (
+          <Diorama
+            accent={zone.accent}
+            accentText={zone.accentText}
+            reducedMotion={reducedMotion}
           />
-        </mesh>
-        <mesh position={[0, -0.85, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.92, 0.035, 8, 32]} />
-          <meshBasicMaterial
-            color={zone.accent}
-            transparent
-            opacity={0.8}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
+        )}
+      </Suspense>
 
-        {/* Columna corta que sostiene el modelo */}
-        <mesh position={[0, -0.55, 0]}>
-          <cylinderGeometry args={[0.18, 0.28, 0.5, 12]} />
-          <meshStandardMaterial
-            color="#0d0206"
-            metalness={0.95}
-            roughness={0.2}
-            emissive={zone.accent}
-            emissiveIntensity={0.1}
-          />
-        </mesh>
+      {/* Luces locales suaves: rim rojo delante y relleno cian detrás. Con
+          intensidades altas la base verde se iba a amarillo y el ACES perdía
+          el detalle de fachada; el Environment ya pone la luz base. */}
+      <pointLight position={[-3.2, 2.6, 3.4]} color={zone.accent} intensity={3.5} distance={12} decay={2} />
+      <pointLight position={[3.4, 1.4, -2.8]} color={CYAN} intensity={1.8} distance={10} decay={2} />
+    </group>
+  )
+}
 
-        {/* =====================================================
-            CENTRO — MODELO 3D EN CURSO (TorusKnot wireframe + vértices)
-            ===================================================== */}
-        <group ref={modelRef} position={[0, 0.35, 0]}>
-          {/* Malla wireframe: se lee como "modelado 3D en progreso" */}
-          <mesh geometry={modelGeo}>
-            <meshBasicMaterial
-              color={zone.accent}
-              wireframe
-              transparent
-              opacity={0.55}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
+/**
+ * El GLB ya está instanciado (45 InstancedMesh). Se renderiza directamente
+ * desde la caché de drei; sólo se ajusta el envMap de sus materiales.
+ *
+ * Interacción: el GLB no trae nombres semánticos (1.808 nodos optimizados a
+ * mallas instanciadas), así que el camión, los tanques y el edificio se
+ * seleccionan con cajas proxy invisibles, alineadas con sus AABB reales en
+ * coordenadas del modelo. La caja no oculta nada: sólo captura el puntero.
+ */
+function Diorama({
+  accent,
+  accentText,
+  reducedMotion,
+}: {
+  accent: string
+  accentText: string
+  reducedMotion: boolean
+}) {
+  const { scene } = useGLTF(MODEL_URL, false)
+  const environment = useThree((s) => s.scene.environment)
+  const modelRef = useRef<THREE.Group>(null)
+  const angleRef = useRef(0)
 
-          {/* Superficie interna tenue para dar volumen */}
-          <mesh geometry={modelGeo} scale={0.98}>
-            <meshStandardMaterial
-              color="#12030a"
-              metalness={0.9}
-              roughness={0.3}
-              emissive={zone.accent}
-              emissiveIntensity={0.12}
-            />
-          </mesh>
+  const activeZone = useExperienceStore((s) => s.activeZone)
+  const activeSubSection = useExperienceStore((s) => s.activeSubSection)
+  const setActiveSubSection = useExperienceStore((s) => s.setActiveSubSection)
+  const setOpenDropdown = useExperienceStore((s) => s.setOpenDropdown)
+  const setSceneHover = useExperienceStore((s) => s.setSceneHover)
 
-          {/* Nube de puntos SOBRE los vértices de la misma malla */}
-          <points geometry={modelGeo}>
-            <pointsMaterial
-              color={CYAN}
-              size={0.05}
-              sizeAttenuation
-              transparent
-              opacity={0.9}
-              blending={THREE.AdditiveBlending}
-            />
-          </points>
-        </group>
+  const [hovered, setHovered] = useState<CreativeObjectId | null>(null)
+  const focused = isCreativeObjectId(activeSubSection) ? activeSubSection : null
 
-        {/* =====================================================
-            GRÁFICO DE BARRAS WIREFRAME (izquierda)
-            ===================================================== */}
-        <group position={[-2.15, 0, 0.55]}>
-          {/* Base del gráfico */}
-          <mesh position={[0, BAR_BASE_Y - 0.03, 0]}>
-            <boxGeometry args={[1.9, 0.06, 0.9]} />
-            <meshStandardMaterial
-              color="#150409"
-              metalness={0.9}
-              roughness={0.3}
-              emissive={zone.accent}
-              emissiveIntensity={0.1}
-            />
-          </mesh>
+  // Las etiquetas de los pines salen de `portfolioContent`; no duplicamos copy.
+  const pinLabels = useMemo(() => {
+    const labels = new Map<CreativeObjectId, string>()
+    for (const object of CREATIVE_OBJECTS) {
+      labels.set(
+        object.id,
+        getSubSectionContent(CREATIVE_ZONE_INDEX, object.id)?.label ?? object.id,
+      )
+    }
+    return labels
+  }, [])
 
-          {barData.map((bar, i) => {
-            const x = -0.65 + i * 0.43
-            const color = i % 2 === 0 ? zone.accent : CYAN
-            return (
-              <mesh
-                key={i}
-                ref={(el) => { if (el) barsRef.current[i] = el }}
-                position={[x, BAR_BASE_Y, 0]}
-                scale={[1, bar.height, 1]}
-              >
-                {/* Caja de unidad 1 de alto → el escalado en Y simula el crecimiento */}
-                <boxGeometry args={[0.3, 1, 0.3]} />
-                <meshStandardMaterial
-                  color="#0d0206"
-                  metalness={0.85}
-                  roughness={0.25}
-                  emissive={color}
-                  emissiveIntensity={0.35}
-                />
-              </mesh>
-            )
-          })}
+  // El Environment global da mucha irradiancia difusa: el verde de la base
+  // se iba a amarillo y el ACES perdía el detalle de las fachadas.
+  // ⚠️ Con envMap null, three r169 pisa envMapIntensity con
+  // scene.environmentIntensity; hay que darle el cubemap como envMap propio
+  // para que la intensidad se respete (mismo gotcha que en CityZone).
+  useEffect(() => {
+    if (!environment) return
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial) {
+          material.envMap = environment
+          material.envMapIntensity = 0.55
+          material.needsUpdate = true
+        }
+      }
+    })
+  }, [scene, environment])
 
-          {/* Wireframe envolvente (lee como "barras de datos" en un informe) */}
-          {barData.map((bar, i) => {
-            const x = -0.65 + i * 0.43
-            const color = i % 2 === 0 ? zone.accent : CYAN
-            return (
-              <mesh
-                key={`wf-${i}`}
-                position={[x, BAR_BASE_Y + bar.height / 2, 0]}
-              >
-                <boxGeometry args={[0.32, bar.height, 0.32]} />
+  // Salir de la zona o cerrar la ficha no dispara pointerOut: el cursor
+  // ambiental se quedaría encendido sobre una escena que ya no se ve.
+  useEffect(() => {
+    setHovered(null)
+    setSceneHover(false)
+  }, [activeZone, activeSubSection, setSceneHover])
+
+  useEffect(() => () => setSceneHover(false), [setSceneHover])
+
+  useFrame((state, delta) => {
+    const model = modelRef.current
+    if (!model) return
+
+    const dt = Math.min(delta, 0.1)
+
+    if (reducedMotion) {
+      angleRef.current = CREATIVE_FOCUS_YAW
+      model.rotation.y = CREATIVE_FOCUS_YAW
+      model.position.y = MODEL_BASE_Y
+      return
+    }
+
+    if (focused) {
+      // Se normaliza el ángulo antes de frenar: `damp` hacia 0 desde, por
+      // ejemplo, 6.1 rad daría casi una vuelta completa en sentido contrario.
+      const wrapped = Math.atan2(Math.sin(angleRef.current), Math.cos(angleRef.current))
+      angleRef.current =
+        Math.abs(wrapped) < 0.002
+          ? CREATIVE_FOCUS_YAW
+          : THREE.MathUtils.damp(wrapped, CREATIVE_FOCUS_YAW, 4.5, dt)
+    } else {
+      angleRef.current += dt * TURNTABLE_SPEED
+      if (Math.abs(angleRef.current) > Math.PI * 2) angleRef.current -= Math.PI * 2
+    }
+
+    model.rotation.y = angleRef.current
+    model.position.y =
+      MODEL_BASE_Y + Math.sin(state.clock.elapsedTime * FLOAT_SPEED) * FLOAT_AMPLITUDE
+  })
+
+  const handleOver = (id: CreativeObjectId) => (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation()
+    setHovered(id)
+    setSceneHover(true)
+  }
+
+  const handleOut = (id: CreativeObjectId) => (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation()
+    setHovered((current) => (current === id ? null : current))
+    setSceneHover(false)
+  }
+
+  const handleClick = (id: CreativeObjectId) => (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    selectObject(id)
+  }
+
+  const selectObject = (id: CreativeObjectId) => {
+    setActiveSubSection(activeSubSection === id ? null : id)
+    // La ficha (z-65) no debe quedar debajo del menú de pestañas (z-80).
+    setOpenDropdown(-1)
+  }
+
+  const hoverObject = (id: CreativeObjectId, over: boolean) => {
+    setHovered((current) => (over ? id : current === id ? null : current))
+    setSceneHover(over)
+  }
+
+  return (
+    <group ref={modelRef} position={[0, MODEL_BASE_Y, 0]}>
+      <primitive object={scene} />
+
+      {CREATIVE_OBJECTS.map((object) => {
+        const isFocused = focused === object.id
+        const isHovered = hovered === object.id
+        return (
+          <group key={object.id} position={object.position}>
+            <mesh
+              onPointerOver={handleOver(object.id)}
+              onPointerOut={handleOut(object.id)}
+              onClick={handleClick(object.id)}
+            >
+              <boxGeometry args={object.size} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+
+            {/* Caja de selección de editor 3D: sólo aparece al apuntar o al
+                inspeccionar, reforzando qué pieza está activa. */}
+            {(isHovered || isFocused) && (
+              <mesh>
+                <boxGeometry args={object.size} />
                 <meshBasicMaterial
-                  color={color}
+                  color={isFocused ? accent : CYAN}
                   wireframe
                   transparent
-                  opacity={0.25}
+                  opacity={isFocused ? 0.55 : 0.3}
+                  depthWrite={false}
+                  toneMapped={false}
                   blending={THREE.AdditiveBlending}
                 />
               </mesh>
-            )
-          })}
-        </group>
-
-        {/* =====================================================
-            GRÁFICO DE TORTA (derecha) — segmentos de cilindro
-            ===================================================== */}
-        <group position={[2.1, -0.25, 0.5]}>
-          <group ref={pieRef}>
-            {pieSegments.map((seg, i) => (
-              <mesh key={i} rotation={[0, seg.start, 0]}>
-                {/* Cilindro recortado por ángulo = porción de torta */}
-                <cylinderGeometry args={[0.75, 0.75, 0.18, 24, 1, false, 0, seg.length]} />
-                <meshStandardMaterial
-                  color="#0d0206"
-                  metalness={0.85}
-                  roughness={0.25}
-                  emissive={seg.color}
-                  emissiveIntensity={0.5}
-                />
-              </mesh>
-            ))}
+            )}
           </group>
+        )
+      })}
 
-          {/* Anillo guía alrededor de la torta (acento frío) */}
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.95, 0.02, 8, 48]} />
-            <meshBasicMaterial
-              color={CYAN}
-              transparent
-              opacity={0.5}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-        </group>
-
-        {/* =====================================================
-            GRÁFICO DE LÍNEAS (arriba, al fondo) — panel wireframe
-            ===================================================== */}
-        <group position={[0, 1.45, -1.7]} rotation={[0, 0, 0]}>
-          {/* Panel/lienzo del informe */}
-          <mesh>
-            <boxGeometry args={[2.6, 1.3, 0.04]} />
-            <meshBasicMaterial
-              color={zone.accent}
-              wireframe
-              transparent
-              opacity={0.15}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-
-          {/* Trayecto dentado (tendencia de datos) */}
-          <lineSegments>
-            <bufferGeometry>
-              {/* OJO: attach SIEMPRE "attributes-position", nunca "position".
-                  Y args=[array, itemSize] en vez de props: el constructor de
-                  BufferAttribute calcula `count`, y sin él three dibuja 0 puntos. */}
-              <bufferAttribute
-                attach="attributes-position"
-                args={[lineSegmentPositions, 3]}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial
-              ref={lineMatRef}
-              color={CYAN}
-              transparent
-              opacity={0.7}
-              blending={THREE.AdditiveBlending}
-            />
-          </lineSegments>
-
-          {/* Vértices destacados sobre el mismo trayecto */}
-          <points ref={dataPointsRef}>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                array={lineVertexPositions}
-                itemSize={3}
-              />
-            </bufferGeometry>
-            <pointsMaterial
-              color={zone.accent}
-              size={0.09}
-              sizeAttenuation
-              transparent
-              opacity={0.95}
-              blending={THREE.AdditiveBlending}
-            />
-          </points>
-        </group>
-
-        {/* =====================================================
-            CHISPAS DE DATOS ORBITANDO
-            ===================================================== */}
-        <points ref={sparksRef}>
-          <bufferGeometry>
-            {/* attach="attributes-*" — NUNCA attach="position" (rompe el render loop).
-                args=[array, itemSize] calcula `count`; con props sueltas count=0 y no se dibuja. */}
-            <bufferAttribute attach="attributes-position" args={[sparkPositions, 3]} />
-            <bufferAttribute attach="attributes-color" args={[sparkColors, 3]} />
-          </bufferGeometry>
-          <pointsMaterial
-            size={0.05}
-            sizeAttenuation
-            vertexColors
-            transparent
-            opacity={0.85}
-            blending={THREE.AdditiveBlending}
-          />
-        </points>
-
-        {/* =====================================================
-            LUCES
-            ===================================================== */}
-        <pointLight color={zone.accent} intensity={10} distance={14} decay={2} />
-        <pointLight position={[2.5, 3, 2.5]} color={CYAN} intensity={5} distance={12} decay={2} />
-      </group>
+      {/* Los proxies se solapan en pantalla (el edificio tapa el camión desde
+          el plano general) y el raycast siempre elige el más cercano. Estos
+          pines son DOM anclados al mundo 3D: siguen a su pieza al girar la
+          tornamesa, pero el clic no compite con ninguna caja. */}
+      {activeZone === CREATIVE_ZONE_INDEX &&
+        CREATIVE_OBJECTS.map((object) => {
+          const isFocused = focused === object.id
+          return (
+            <Html
+              key={`pin-${object.id}`}
+              position={[
+                object.position[0],
+                object.position[1] + object.size[1] / 2 + PIN_LIFT,
+                object.position[2],
+              ]}
+              center
+              zIndexRange={[60, 0]}
+            >
+              <button
+                type="button"
+                className={`creative-hotspot${isFocused ? ' is-active' : ''}`}
+                style={{ '--pin-accent': accentText } as CSSProperties}
+                aria-pressed={isFocused}
+                aria-label={pinLabels.get(object.id)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  selectObject(object.id)
+                }}
+                onPointerEnter={() => hoverObject(object.id, true)}
+                onPointerLeave={() => hoverObject(object.id, false)}
+                onFocus={() => hoverObject(object.id, true)}
+                onBlur={() => hoverObject(object.id, false)}
+              >
+                <span className="creative-hotspot-dot" aria-hidden="true" />
+                <span className="creative-hotspot-label">{pinLabels.get(object.id)}</span>
+              </button>
+            </Html>
+          )
+        })}
     </group>
+  )
+}
+
+/** Fallback mientras llega el GLB: caja de selección de editor 3D. */
+function LoadingCage({ accent }: { accent: string }) {
+  return (
+    <mesh position={[0, MODEL_CENTER_Y, 0]}>
+      <boxGeometry args={[4.4, MODEL_HEIGHT, 4.4]} />
+      <meshBasicMaterial
+        color={accent}
+        wireframe
+        transparent
+        opacity={0.18}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </mesh>
+  )
+}
+
+function DataTicks({
+  positions,
+  accent,
+  reducedMotion,
+}: {
+  positions: Float32Array
+  accent: string
+  reducedMotion: boolean
+}) {
+  const ticksRef = useRef<THREE.Points>(null)
+
+  useFrame((state) => {
+    if (!ticksRef.current || reducedMotion) return
+    ticksRef.current.rotation.y = state.clock.elapsedTime * 0.22
+  })
+
+  return (
+    <points ref={ticksRef} position={[0, -1.35, 0]}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color={accent}
+        size={0.07}
+        sizeAttenuation
+        transparent
+        opacity={0.85}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
   )
 }

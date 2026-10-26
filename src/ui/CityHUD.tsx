@@ -31,6 +31,7 @@ export default function CityHUD() {
   const activeZone = useExperienceStore((s) => s.activeZone)
   const visible = activeZone === 4
   const accent = ZONES[4]?.accent ?? '#00ff88'
+  const accentText = ZONES[4]?.accentText ?? '#66ffb3'
   const [fps, setFps] = useState(60)
 
   // Contador FPS: muestrea 1 vez por segundo vía rAF.
@@ -107,7 +108,12 @@ export default function CityHUD() {
         <motion.div
           key="city-hud"
           className="city-hud"
-          style={{ ['--accent' as string]: accent } as React.CSSProperties}
+          style={
+            {
+              ['--accent' as string]: accent,
+              ['--accent-text' as string]: accentText,
+            } as React.CSSProperties
+          }
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}

@@ -111,7 +111,12 @@ export default function CreditsRoll() {
                 <div
                   key={zone.id}
                   className='credits-block'
-                  style={{ ['--accent']: zone.accent } as React.CSSProperties}
+                  style={
+                    {
+                      ['--accent']: zone.accent,
+                      ['--accent-text']: zone.accentText,
+                    } as React.CSSProperties
+                  }
                 >
                   <span className='credits-role'>
                     {String(i + 1).padStart(2, '0')} - {zone.hudLabel}

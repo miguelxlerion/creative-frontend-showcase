@@ -11,6 +11,7 @@
 export const PRODUCT_THEME = {
   bg: '#0a0a0a',
   accent: '#ff5500',
+  accentText: '#ff8a3d',
   accentGlow: '#ff5500',
   textPrimary: '#ffffff',
   textSecondary: '#b0b0b0',

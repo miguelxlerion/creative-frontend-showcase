@@ -38,7 +38,7 @@ tailwind.config.js          Tailwind
 postcss.config.js           PostCSS (tailwind + autoprefixer)
 
 src/
-  main.tsx                  Punto de entrada, React.StrictMode
+  main.tsx                  Punto de entrada, React.StrictMode + MotionConfig (reducedMotion="user")
   App.tsx                   <Canvas> + Scene + overlays DOM + header fijo
   styles.css                TODO el CSS propio (HUD, paneles, dropdowns, keyframes)
   store/
@@ -54,25 +54,35 @@ src/
     globalPointer.ts        ★ Puntero normalizado -1..1 compartido DOM ↔ 3D
     zones/
       ArchitectureZone.tsx  Zona 0 — Cara virtual holográfica (cian) — sigue el cursor y habla
-      TestingZone.tsx       Zona 1 — Tests de laboratorio (verde)
-      AIWorkflowZone.tsx    Zona 2 — Pipeline de IAs (morado)
-      CreativeZone.tsx      Zona 3 — Modelado 3D + dataviz (rojo)
+      TestingZone.tsx       Zona 1 — Laboratorio GLB (mesa + vidrio) + aro neón (verde)
+      AIWorkflowZone.tsx    Zona 2 — Pipeline editor → cerebro IA → CI/CD + partículas (morado)
+      CreativeZone.tsx      Zona 3 — Diorama GLB optimizado en vitrina neón (rojo)
       CityZone.tsx          Zona 4 — GLB low-poly instanciado (~520) + IoT + hover/clic
-      ProductZone.tsx       Zona 5 — Dron procedural 6 piezas + ScrollControls (4 páginas)
+      ProductZone.tsx       Zona 5 — Cuadricóptero procedural (13 módulos) + ScrollControls (4 páginas)
       productScroll.ts      ★ Puente imperativo offset del canvas → HUD DOM del configurador
   ui/
     NavigationUI.tsx        Pestañas de carpeta ARRIBA-DERECHA + dropdowns de sub-temas
     HUDOverlay.tsx          Tarjeta héroe abajo-izquierda + trigger y modal "ZONE DOSSIER"
-    DetailPanel.tsx         Panel de detalle de sub-tema (entra desde la derecha)
+    DetailPanel.tsx         Panel de detalle de sub-tema (entra desde la derecha; bloques ricos en zona AI)
+    AccessibilitySummary.tsx ★ Puente Canvas → lector de pantalla (región aria-live sr-only)
     CursorOverlay.tsx       ★ Cursor ambiental (punto + anillo) teñido con el acento activo
     CityHUD.tsx             HUD superior-izq zona 5 (título, System Status, FPS)
     BuildingPanel.tsx       Panel contextual edificio (Framer Motion, SVG chart)
     ScrollUI.tsx            Configurator: barra de progreso continua (rAF) + una sección por página + PRE-ORDER
+    PreOrderModal.tsx       Flujo demo de reserva (configurar → piloto → confirmación) en portal, z-95
+    AIAssistantChat.tsx     Zona 2: chat RAG mockeado (thinking → typewriter → fuentes) + minimize/launcher
+    AIWorkflowLegend.tsx    Zona 2: leyenda interactiva de las 4 herramientas (botones reales, aria-pressed)
+    AIWorkflowStats.tsx     Zona 2: telemetría mockeada con count-up (aria-hidden, decorativa)
+    AIToolIcon.tsx          Iconos SVG inline de Copilot / Cursor / RAG / Automation
+  hooks/
+    useReducedMotion.ts     ★ Preferencia `prefers-reduced-motion` viva (useSyncExternalStore)
+    useGlobalKeyboardNav.ts ★ ←/→ zonas, ↑/↓ sub-temas, Enter/Space, Escape jerárquico (menú → panel)
 ```
 
 **Capas DOM (de menor a mayor `z-index`), definidas en `styles.css`:**
-tarjeta héroe z-40 → trigger dossier z-55 → `DetailPanel` z-60 → pestañas + dropdown z-70/80 →
-modal dossier z-90 → **capa del cursor z-200**. El wrapper `.folder-tabs` es z-70: sin eso, el
+tarjeta héroe z-40 → **stats IA z-44** → **leyenda IA z-46** → **chat IA z-52** → trigger dossier z-55 →
+`DetailPanel` / `BuildingPanel` z-65 → pestañas + dropdown z-70/80 → controles de cine z-75 /
+HUD del tour z-85 → modal dossier z-90 → **pre-order z-95** → **capa del cursor z-200**. El wrapper `.folder-tabs` es z-70: sin eso, el
 `z-index` interno del dropdown no servía porque el wrapper viejo (z-20) creaba su propio
 stacking context. La capa del cursor va la última y con `pointer-events: none`: sólo observa.
 
@@ -101,7 +111,7 @@ Las 6 zonas actuales:
 |---|----|-------|--------|------|
 | 0 | `architecture` | Architecture | `#00f0ff` | MIGUEL E. RODRIGUEZ |
 | 1 | `testing` | Testing | `#00ff88` | 85%+ |
-| 2 | `ai` | AI Workflow | `#b026ff` | AI-ASSISTED |
+| 2 | `ai` | AI Workflow | `#b026ff` | AI-ASSISTED WORKFLOW |
 | 3 | `creative` | Creative 3D | `#ff0055` | 60 FPS |
 | 4 | `city` | Digital Twin | `#00ff88` | 500+ BUILDINGS |
 | 5 | `product` | Configurator | `#ff5500` | SCROLL-DRIVEN |
@@ -224,10 +234,13 @@ Si un elemento nuevo queda tapado, casi siempre es un conflicto de `z-index` en 
 
 ### 4.5 Geometría procedural y assets locales
 
-Casi todo es primitivas Three.js + buffers procedurales. **El único modelo binario es
-`public/models/building.glb`** (~92 KB, low-poly, 1.995 vértices / 958 triángulos, 1 material
-y ninguna textura): el edificio de oficinas que se instancia ~520 veces en el Digital Twin. Se
-carga con `useGLTF(url, false)` para que drei no configure un decoder remoto.
+Casi todo son primitivas Three.js + buffers procedurales. Hay **tres modelos binarios**:
+`public/models/building.glb` (~92 KB, low-poly, 1.995 vértices / 958 triángulos, 1 material
+y ninguna textura), el edificio de oficinas que se instancia ~520 veces en el Digital Twin;
+`public/models/lab.glb` (el laboratorio de Testing, ver más abajo); y
+`public/models/creative.glb` (el diorama industrial de Creative 3D, 586 KB, 45 InstancedMesh,
+ver pasada 12). Los tres se cargan con `useGLTF(url, false)` para que drei no configure un
+decoder remoto.
 
 Ese GLB viene de **3ds Max con Z arriba** y la base en `z=0`. Trae un nodo raíz con una matriz
 que aplica una conversión de ejes (+90° en X, que deja el modelo boca abajo) más la traslación
@@ -260,6 +273,18 @@ Los modelos fuente sin optimizar viven en `models/` y están **ignorados por git
 `public/models/building.glb` versionado es el que consume la web; no hace falta ningún
 paso de `gltf-transform` mientras el modelo sea low-poly.
 
+**Laboratorio de Testing (`public/models/lab.glb`).** Export de Blender de 6,4 MB / 259k
+triángulos / 69 mallas / 14 materiales / 2 texturas 1K. Se carga con `useGLTF(LAB_URL, false)`
+**sólo cuando `activeZone === 1`** (lazy + `<Suspense>`); al salir se desmonta y drei conserva
+el asset en caché, así que volver es instantáneo. El GLB incluye un fondo de estudio (`Plane`,
+241×79×167) que no pertenece a la pieza y se elimina al clonar la escena. La mesa se normaliza
+por ancho (`LAB_WIDTH = 3.8`), se centra en X/Z y se apoya sobre la rejilla (`y = -1.9`). El
+vidrio del export es opaco: se vuelve transparente (`depthWrite=false`, `DoubleSide`); los
+líquidos conservan su color autorado pero emiten y pulsan; la madera se tiñe oscura porque el
+GLB sólo trae el AO como textura de color (sin tinte, la mesa sale blanca y se come el
+encuadre). El encuadre de la zona no cambió: `[16.2, 0.9, 5.4]` → `[16, 0, -4]`.
+Verificado en navegador: 60 FPS y 0 errores con el modelo montado.
+
 ### 4.6 Suelo y escala
 
 Hay una **rejilla-suelo en `y = -1.9`** que cruza las 4 zonas. Toda geometría de zona debe
@@ -277,8 +302,8 @@ Los 8 puntos que el dueño pidió sobre el lienzo están **hechos y comprobados 
 1. ✅ **Zona 0 → cara virtual holográfica**: plano facial achatado + cascarón wireframe, ojos
    emisivos con parpadeo, cejas, nariz triangular, boca, contorno elíptico, 3 escáneres que
    barren en Y, retículo girando y partículas orbitando.
-2. ✅ **Zona 1 → tests de laboratorio**: banco con 5 tubos de ensayo de líquido a distintas
-   alturas, 2 matraces Erlenmeyer, vaso graduado, 18 burbujas subiendo, lupa flotante y vapor.
+2. ✅ **Zona 1 → laboratorio**: GLB `public/models/lab.glb` (mesa + material de vidrio y
+   líquidos) en lugar de la geometría procedural, integrado con el aro neón de la zona.
 3. ✅ **Zona 2 → pipeline de IAs**: `INPUT → [COPILOT · CURSOR · RAG] → CI/CD`, nodos
    distinguibles, 6 conexiones, flechas dirigidas y 12 paquetes de datos viajando en bucle.
 4. ✅ **Zona 3 → modelado 3D + datos**: `TorusKnot` wireframe con nube de puntos en los
@@ -401,7 +426,7 @@ sin sub-temas (la interacción es un scroll real de 4 páginas dentro del Canvas
 | Componente | Rol |
 |------------|-----|
 | `config/productLayout.ts` | `PRODUCT_THEME` (bg, accent `#ff5500`, silver `#c0c0c0`) y `SCROLL_SECTIONS` (4 textos + rangos). |
-| `scene/zones/ProductZone.tsx` | `ScrollControls pages={4} damping={0.2}` (montado SOLO con la zona activa) + dron procedural de 6 piezas (`body`, `leftArm`, `rightArm`, `lens`, `ring1`, `ring2`). `useScroll()` entrega `offset` 0..1; `useFrame` aplica rotación, explode, lerp de color plata→naranja y reensamblado. La cámara NO se toca aquí. |
+| `scene/zones/ProductZone.tsx` | `ScrollControls pages={4} damping={0.2}` (montado SOLO con la zona activa) + cuadricóptero procedural de 13 módulos (`hull`, `canopy`, `battery`, `sensor`, `antenna`, `gimbal`, `lens`, cuatro `arm*` y dos `skid*`). `useScroll()` entrega `offset` 0..1; `useFrame` aplica rotación, explode, giro de rotores, lerp de color plata→naranja y reensamblado. La cámara NO se toca aquí. Ver pasada 13. |
 | `scene/zones/productScroll.ts` | Puente `productScroll.offset` escrito por el Canvas y leído por `ScrollUI` con rAF (sin re-renders por frame). `resetProductScroll()` al montar el HUD. |
 | `store/useExperienceStore.ts` | `productPhase` (0..3) derivada del offset; `setProductPhase()`. `setZone` resetea la fase a 0. |
 | `ui/ScrollUI.tsx` | UI HTML (Framer Motion): barra de progreso lateral, una sección visible por página, cue "SCROLL TO CONFIGURE" solo en la página 0, PRE-ORDER NOW magnético. Sin listeners de wheel/touch: el scroll lo gobierna ScrollControls. |
@@ -425,7 +450,7 @@ sin sub-temas (la interacción es un scroll real de 4 páginas dentro del Canvas
 6. **Material único y memoizado para el chasis.** `MeshStandardMaterial` con `metalness: 0.5`, `roughness: 0.4` (aluminio cepillado). Con metalness 0.9 + HDRI de estudio la plata reventaba a blanco y el naranja se lavaba.
 7. **Sin `<Environment>` propio en la zona.** Montar un `preset` aquí descarga otro HDR remoto y pisa el cubemap global; fue justo lo que sobreexpuso el dron. La escena ya tiene su env global.
 8. **ProductZone NO toca la cámara.** `CameraController` es la única autoridad; el vuelo de entrada ya deja el plano cercano (`[80,2,-11.5]`). El parallax sigue vivo.
-9. **El dron se escala por aspecto** (`fitScale`: 0.8 / 0.9 / 1) para que el despiece ancho no se salga en teléfonos.
+9. **El dron se escala por aspecto** (`fitScale`: 0.82 / 0.9 / 1) para que el despiece ancho no se salga en teléfonos. Con 0.92 el rotor extremo se recortaba en vertical (pasada 13).
 10. **`ContactShadows` con `frames={1}` en táctil** para no recalcular la sombra cada frame del despiece.
 11. **Texto en posición fija acotada.** Sólo hay una sección visible por página, así que usa una única posición con `clamp` para no invadir el trigger del dossier (abajo ~132 px) ni la tarjeta HUD (alto ~186 px). No volver a las posiciones escalonadas 15%/35%/55%/75%: se solapaban entre fases.
 
@@ -472,6 +497,495 @@ Nuevo sistema de paneles de detalle y datos centralizados que afecta a todas las
 4. **selectedBuilding tipado:** Ahora es `CityBuildingData | null` (objeto completo). CityZone busca en `cityData[id]` y pasa el objeto.
 5. **NavigationUI sync:** Usa `activeSubSection` para `aria-selected` y highlight visual.
 6. **Limpieza al cambiar zona:** `setZone` resetea `activeSubSection`, `selectedBuilding`, `productPhase`, `sceneHover`.
+
+### Añadido (pasada 8): AI Assistant mockeado en la zona AI Workflow
+
+Chat decorativo que imita un asistente RAG **sin red ni modelo**: las respuestas se escriben a
+mano en `portfolioContent.section03.assistant` (greeting, 3 prompts con `answer` y `sources`).
+
+| Componente | Rol |
+|------------|-----|
+| `data/portfolioContent.ts` | `section03.assistant`: datos del chat junto al resto del texto de la zona. **No duplicar strings en el componente.** |
+| `ui/AIAssistantChat.tsx` | Panel inferior-derecho (z-52). Al pulsar una sugerencia: puntos de "retrieving" 650 ms → typewriter (3 chars / 16 ms) → chips `RETRIEVED CONTEXT`. Botón minimizar ↔ launcher, `aria-live` con el texto completo, y `prefers-reduced-motion` muestra la respuesta de golpe. |
+| `App.tsx` | Montado tras `<ScrollUI />`; el propio componente decide visibilidad. |
+
+**Reglas de visibilidad:** sólo con `activeZone === 2`, `phase === 'experience'`, `!guided` y
+`activeSubSection === null`. Al entrar en la zona se resetea el historial y se abre el panel;
+al abrir un sub-tema (DetailPanel z-65) el chat se oculta para no quedar debajo.
+
+**Gotchas:**
+1. **El foco se transfiere al terminar la animación, no en el `useEffect`.** Con
+   `AnimatePresence mode="wait"` el launcher/panel aún no existen cuando cambia `open`; el foco
+   se mueve en `onAnimationComplete`. Si se hace antes, cae en `<body>`.
+2. **El chat se autooculta pero no se desmonta** (vive en `App.tsx`). Los timers se limpian al
+   entrar de nuevo en la zona y al desmontar; no añadir efectos que asuman que está oculto.
+3. **`prefers-reduced-motion` ahora es vivo** con `useReducedMotion` (matchMedia compartido):
+   el typewriter se desactiva al cambiarla, sin recargar.
+4. **En móvil (≤640 px) el panel/launcher suben a `bottom: 78px`** para dejar libre el pill de
+   cine; el panel es full-width y no debe superar `48dvh`.
+
+### Añadido (pasada 9): accesibilidad WCAG AA
+
+Capa de accesibilidad **sin tocar el diseño, los modelos ni la navegación existente**:
+solo atributos ARIA, foco, teclado, contraste de texto y movimiento reducido.
+
+| Componente / archivo | Rol |
+|----------------------|-----|
+| `hooks/useReducedMotion.ts` | Preferencia viva con `useSyncExternalStore` sobre un único `MediaQueryList` a nivel de módulo. Todos los consumidores (3D, cámara, DOM, chat) comparten la misma suscripción. |
+| `hooks/useGlobalKeyboardNav.ts` | Atajos globales en `window`: ←/→ cambian de zona (todas, incluidas las que no tienen sub-temas) con wrap; ↑/↓ recorren los sub-temas de las zonas 0–3 con wrap; Enter/Space abre el primero si el foco no está en un control; Escape cierra el DetailPanel **después** de que el menú haya consumido el suyo. |
+| `ui/AccessibilitySummary.tsx` | Región `role="status"` `aria-live="polite"` + `.sr-only` fuera del Canvas. Publica zona, dato héroe, sub-opciones, contenido completo del DetailPanel y métricas. Usa `getSubSectionContent()` (misma fuente que el panel). |
+| `main.tsx` | `<MotionConfig reducedMotion="user">` envuelve `<App/>`: Framer Motion omite transformaciones/escalas/layout con la preferencia activa; los fundidos de opacidad se conservan. |
+| `App.tsx` | `.skip-link` como primer elemento enfocable (salta a `<main id="main-content" tabIndex={-1}>`); `<Canvas aria-hidden="true" tabIndex={-1}>`; `<AccessibilitySummary/>` dentro de `main`. |
+| `config/zones.ts` | Nuevo campo `accentText` junto a `accent`: color de **texto** con ≥4.5:1, mientras `accent` sigue rigiendo materiales 3D, bordes y glows. |
+| `styles.css` | `--accent-text` en todas las declaraciones `color` con acento; alphas de texto subidos a ≥0.55; anillo global `:focus-visible` de 3 px amarillo (`#ffe600`) con `!important`; skip link amarillo con anillo blanco. |
+
+**Modelo de teclado y foco**
+
+- **Tab no se secuestra:** el skip link y las 6 pestañas se alcanzan primero, pero el resto de
+  controles siguen siendo tabulables (restringir Tab a la nav haría inalcanzables los paneles y
+  violaría WCAG). El Canvas no entra en el orden de tabulación.
+- **Menú de sub-temas:** `role="menu"` + `role="menuitemradio"` + `aria-checked`, roving tabindex
+  (un solo ítem con `tabIndex=0`), ↑/↓/Home/End, Escape cierra y devuelve el foco a la pestaña.
+  Enter y Space se resuelven explícitamente en `keydown` con `preventDefault()` para no duplicar
+  la activación nativa.
+- **Escape jerárquico:** si hay un menú abierto, lo cierra NavigationUI; si no, el hook global
+  cierra el DetailPanel y **reabre el menú enfocando el sub-botón elegido**. Los diálogos con
+  teclado propio (dossier, chat, panel de edificio, campos) quedan excluidos.
+- **Cierre con ×:** tanto DetailPanel como BuildingPanel devuelven el foco a la pestaña de la
+  zona antes de desmontarse, para no dejarlo en `<body>`.
+- **Ciclo de flechas:** al pulsar ↑/↓ se actualiza `activeSubSection` inmediatamente (el panel se
+  abre) y el resumen `aria-live` anuncia el nuevo contenido.
+- **Cambio de sección con ←/→:** el hook global cicla `activeZone` con wrap desde cualquier punto
+  de la página, también en Digital Twin y Configurator (no dependen de tener sub-temas). Sobre la
+  tira de pestañas lo gestiona NavigationUI: mueve el foco y activa la zona en el mismo gesto.
+  Menús, diálogos y campos conservan sus teclas; no añadir otro listener global que las capture.
+
+**Contraste**
+
+- `--accent-text` se inyecta en cada contenedor que ya inyectaba `--accent` (tabs, HUD, dossier,
+  DetailPanel, CityHUD, BuildingPanel, cine, tour, créditos, chat, ScrollUI, cursor).
+  Valores: cian `#00ffff`, verde `#66ffb3`, morado `#c76bff`, rosa `#ff6b9d`, naranja `#ff8a3d`.
+  El morado original `#b026ff` daba ≈4.33:1 y por eso no se usa para texto.
+- Los textos atenuados (`rgba(238,246,255,0.25–0.5)`) subieron a 0.55 para superar 4.5:1 sobre
+  `#05050a`; los elementos decorativos `aria-hidden` (separadores, caret) no se tocaron.
+- El skip link es amarillo con texto `#05050a`; su anillo de foco es blanco para no fundirse con
+  el fondo amarillo.
+
+**Movimiento reducido (cobertura)**
+
+- **3D:** `CameraController` aterriza sin tween (y fija `isFlying=false`); parallax de ratón a 0;
+  `ArchitectureZone` (cara/mirada/boca/escáneres), `TestingZone` (pulso de los líquidos),
+  `AIWorkflowZone` (nodos/paquetes/anillo), `CreativeZone` (giro de vitrina/flotación/ticks), `CityZone`
+  (respiración/pulso/lerp de color), `ProductZone` (rotación/explode/pintura/bob) y `DustField`
+  quedan en pose estática. `Stars` baja su velocidad a 0.
+- **DOM:** `MotionConfig` + `@media (prefers-reduced-motion: reduce)` global (animaciones y
+  transiciones a 0.01 ms); el anillo del cursor se oculta; ScrollUI salta de página en página en
+  la barra de progreso y no instala el efecto magnético del PRE-ORDER.
+
+**Gotchas a11y (no romper)**
+
+1. **Texto de acento = `--accent-text`, nunca `--accent`.** El acento original está calibrado
+   para materiales emisivos; usarlo como color de texto deja el morado por debajo de AA.
+2. **El anillo de foco global necesita `!important`.** Varias reglas `:focus-visible` existentes
+   hacen `outline: none` y confían en sombras internas; sin `!important` el foco desaparece en
+   esas superficies. `.app-main:focus-visible` es la única excepción (el destino del skip link es
+   un contenedor y el anillo quedaría recortado).
+3. **`AccessibilitySummary` solo se suscribe a `phase`, `activeZone` y `activeSubSection`.**
+   Si se suscribe a `cityData` o al tick IoT, el lector de pantalla recibiría una actualización
+   cada 2 s y resultaría inutilizable.
+4. **El hook global no debe robar teclas a los controles.** Los selectores `UI_OWNS_KEYS_SELECTOR`
+   / `DIALOG_SELECTOR` excluyen el menú, el dossier, el chat, el panel de edificio y los campos.
+   Añadir una UI con teclado propio exige ampliar esas listas.
+5. **Enter/Space en `menuitemradio` se manejan a mano.** No quitar el `preventDefault()`: sin él,
+   el navegador dispararía además el click nativo y el sub-tema se abriría y cerraría en el mismo
+   keydown.
+6. **Al desmontar un panel hay que devolver el foco.** Cerrar con × desde teclado deja el foco en
+   `<body>` si no se reubica antes del desmontaje (DetailPanel/BuildingPanel ya lo hacen).
+7. **La preferencia de movimiento es viva.** No volver a leerla con `useMemo(..., [])`: el hook
+   compartido notifica cambios de `matchMedia` y los tres mundos (3D, cámara, DOM) reaccionan.
+8. **Verificado en headless (Chrome + CDP con `Emulation.setEmulatedMedia`):** con `reduce`, el
+   DetailPanel aparece con `transform: none`, las animaciones CSS duran `1e-05s`, el anillo del
+   cursor queda `display:none` y la transición del skip link es instantánea; sin la preferencia,
+   el panel arranca en `matrix(…, 343.75, …)`. Sin errores de consola en ninguno de los dos modos.
+
+### Añadido (pasada 10): laboratorio GLB en la zona Testing
+
+Se sustituyó la geometría procedural de `TestingZone` (tubos, matraces, burbujas, lupa y vapor)
+por `public/models/lab.glb`, el export de Blender de la mesa de laboratorio.
+
+| Aspecto | Detalle |
+|---------|---------|
+| Carga | `useGLTF('/models/lab.glb', false)` dentro de `<Suspense>`; sólo se monta con `activeZone === 1`. Fuera de la zona se desmonta y drei mantiene el asset en caché. |
+| Fondo | El GLB trae un `Plane` de 241×79×167 que se elimina con `removeFromParent()` al clonar. No es una pared del laboratorio. |
+| Escala | `Box3` real del clon (sin fondo) → ancho `3.8`; centrado en X/Z y base en `y=-1.9`. La cámara de la zona no cambió. |
+| Materiales | Vidrio transparente (el export es opaco); metal/plástico/cerámica ajustados; madera teñida oscura; líquidos con emissive pulsante que se detiene con movimiento reducido. |
+| Vida | Aro neón y point lights locales. Sin rotación de la mesa: un mueble girando rompe la lectura. |
+
+**Gotchas:**
+1. **No montar `useGLTF` sin gate.** `TestingZone` vive siempre en `Scene`; cargar el GLB al
+   arrancar retrasa la intro y todas las zonas. El gate por `activeZone` + `Suspense` es intencional.
+2. **No aplicar transformaciones al objeto cacheado.** Se clona la escena y se normaliza el clon;
+   el GLB de drei queda intacto para futuros montajes.
+3. **El nodo `Plane` no es la mesa.** `Plane.001` es el tablero cerámico y debe conservarse; sólo
+   se elimina el nodo exacto `Plane` (fondo del estudio de Blender).
+4. **Los materiales se comparten entre mallas.** El recorrido deduplica con un `Set`; sin él los
+   líquidos se registrarían varias veces y el pulso se pisaría.
+5. **No hace falta tocar la cámara para "acercar" el lab.** El encuadre existente funciona; si se
+   agranda el modelo, el aro de radio 2.9 debe seguir conteniendo la huella.
+
+### Añadido (pasada 11): rediseño de la zona AI Workflow
+
+La zona 2 dejó de ser un diagrama abstracto y ahora representa el flujo real de trabajo:
+**editor (entrada) → cerebro neuronal (procesamiento IA) → CI/CD (salida)**, con partículas que
+recorren el pipeline y cuatro herramientas seleccionables.
+
+| Pieza | Detalle |
+|-------|---------|
+| `scene/zones/AIWorkflowZone.tsx` | Editor tipográfico con cursor parpadeante y tooltip al hover; cerebro `IcosahedronGeometry` (radio 0.8, detalle 1) con núcleo sólido + cáscara geodésica + anillos giroscópicos, 16 nodos orbitando instanciados y **2 nodos etiquetados clicables** (Cursor derecha, RAG abajo; el nodo Copilot se quitó en la pasada 15 porque no tenía acción); CI/CD con base hexagonal, tres puertas completas BUILD/TEST/DEPLOY, 9 commits instanciados y beacon de despliegue. Un único `<points>` (110 partículas) recorre una `CatmullRomCurve3` con color cian → morado → verde. |
+| `data/portfolioContent.ts` | Los 4 `section03.subButtons` llevan `icon`, `usage` (2 cifras), `flow` (sólo RAG) y `beforeAfter` (sólo Automation). `section03.stats` declara la telemetría. **Todo el copy vive aquí**; los componentes no duplican strings. |
+| `ui/AIWorkflowLegend.tsx` | Leyenda con 4 `<button>` reales derivados de `subButtons`, `aria-pressed`, icono y color por herramienta. Alterna `activeSubSection` (mismo estado que el dropdown, los clics 3D y el panel). |
+| `ui/AIWorkflowStats.tsx` | Panel superior-derecho con las 4 métricas; count-up de 1.3 s con easeOutCubic y salto directo al valor final con movimiento reducido. `aria-hidden` porque es telemetría decorativa. |
+| `ui/AIToolIcon.tsx` | SVG inline (sin dependencias) para Copilot, Cursor, RAG y Automation. |
+| `ui/DetailPanel.tsx` | En zona AI muestra kicker “AI TOOL · DETAIL VIEW”, icono junto al título, bloque `usage` de dos cifras, pipeline RAG (`flow`) y tarjetas antes/después (`beforeAfter`). Conserva el foco y el cierre existentes. |
+| `ui/AccessibilitySummary.tsx` | El resumen sr-only incluye `usage`, `flow` y `beforeAfter`, leídos con `getSubSectionContent()` (misma fuente que el panel). |
+| `scene/CameraController.tsx` | `AI_SUB_VIEWS` define un plano cercano por herramienta (lookAt + offset en coordenadas locales del layout); con viewport >640 px se suma `AI_PANEL_LOOK_SHIFT` para dejar la etapa en el área libre a la izquierda del panel y en móvil se usa `AI_MOBILE_LOOK_DROP`. |
+| `styles.css` | `.ai-legend` (z-46), `.ai-stats` (z-44), bloques `.dp-usage` / `.dp-flow` / `.dp-ba`, responsive y reduced-motion. |
+
+**Cómo interactúa**
+
+- Editor, nodos Cursor/RAG y CI/CD tienen hitboxes invisibles con `onPointerOver` /
+  `onClick`; el editor representa a **Copilot**. Hover = escala + brillo + tooltip; clic = abre o
+  cierra el `DetailPanel` de esa herramienta.
+- La leyenda, el dropdown de navegación, los clics 3D y el panel leen y escriben **el mismo**
+  `activeSubSection`; no hay estado paralelo.
+- El chat RAG se oculta mientras hay un sub-tema abierto (ya era así antes del rediseño).
+- Con la zona inactiva, hover y `sceneHover` se limpian para que el cursor ambiental no quede
+  “pegado” al volver.
+
+**Gotchas (no volver a romperlos)**
+
+1. **El tooltip del editor va DEBAJO del marco, no encima.** En ventanas ≤1120 px la leyenda AI
+   ocupa la franja superior izquierda (y≈148–191 a 1052×785) y tapaba el sprite si se anclaba en
+   `y=1.46`. Está en `y=-0.82` a propósito; si se sube, el tooltip vuelve a quedar detrás del
+   cristal de la leyenda.
+2. **La leyenda cierra el dropdown antes de abrir un panel.** `setOpenDropdown(-1)` evita que el
+   menú (z-80) tape el `DetailPanel` (z-65) en la misma esquina.
+3. **Los planos de cámara AI están alineados con el orden de `section03.subButtons`**
+   (Copilot, Cursor, RAG, Automation). Reordenar las herramientas exige reordenar
+   `AI_SUB_VIEWS`, o el foco caerá en otra etapa.
+4. **El desplazamiento `AI_PANEL_LOOK_SHIFT` sólo aplica con ancho >640 px.** En móvil el panel es
+   una hoja inferior; compensar en X dejaría la etapa descentrada sin ganar nada.
+5. **El pipeline se escala por aspecto** (`pipelineScale`: 1 / 0.9 / 0.78) para que las tres
+   etapas entren en el encuadre. La cámara además aplica `aspectFit`; en vertical el conjunto se
+   ve pequeño pero completo. No subir la escala sin revisar el recorte de editor/CI/CD.
+6. **El cerebro no debe tocar el suelo.** El nodo RAG vive en `y=-1.18` y su etiqueta en
+   `y=-1.64` (coordenadas locales, con el cerebro en `y=0.3`); el suelo está en `y=-1.9`.
+   Bajarlo más hunde el nodo en la rejilla.
+7. **Las estadísticas son decorativas y no deben anunciarse.** Mantener `aria-hidden`; con
+   `prefers-reduced-motion` el count-up salta a `progress=1` para no animar cifras.
+8. **Los sprites de etiqueta usan `makeLabelTexture()` y se liberan al desmontar.** No añadir
+   texturas remotas ni fuentes externas; el texto se dibuja en canvas con la fuente del proyecto.
+9. **Verificado en navegador (1052×785):** tooltip “VS CODE + COPILOT”, clic en editor → GITHUB
+   COPILOT, nodos Copilot/Cursor/RAG → su panel, CI/CD → AUTOMATION PIPELINE, leyenda con
+   `aria-pressed` sincronizado, count-up 77→147 / 1.2k→2.3k, cámara centrada en el área libre.
+   En un iframe de 386×776 (media queries reales): leyenda arriba, stats ocultas, chat
+   minimizado sobre el pill de cine y panel como hoja inferior con scroll.
+
+### Añadido (pasada 12): zoom cinematográfico y semántica de la zona AI
+
+El dueño pidió que la cámara se acerque al pulsar cada componente y que se entienda qué
+representan el núcleo, Copilot, Cursor, RAG y CI/CD.
+
+| Pieza | Detalle |
+|-------|---------|
+| `config/aiWorkflowLayout.ts` | **Layout compartido** entre escena y cámara: posiciones locales de editor, cerebro y salida, radio del núcleo, posiciones de los tres nodos y `aiPipelineScale(aspect)`. La cámara importa estos valores en vez de duplicarlos. |
+| Núcleo neuronal | Radio **0.8** (antes 1.35) con núcleo sólido interior, cáscara geodésica wireframe, volumen tenue, anillos giroscópicos, 16 nodos orbitando y etiqueta flotante **NEURAL CORE**. La esfera ya no domina el encuadre. |
+| Copilot | Cabeza de robot (caja, ojos emisivos, antena, orejas) sobre el núcleo; el editor de la izquierda sigue representando a Copilot. |
+| Cursor | Cubo-editor oscuro con aristas neón, filas de código instanciadas y caret parpadeante. |
+| RAG | Pila de base de datos vectorial de tres discos, anillo de escaneo y lupa. |
+| CI/CD | Torre con base hexagonal, espina vertical, tres puertas completas (`BUILD`, `TEST`, `DEPLOY`) con etiqueta propia, commits instanciados subiendo, cono + esfera de despliegue y etiqueta `CI/CD`. |
+| Zoom | `AI_SUB_VIEWS` en `CameraController`: cada herramienta tiene `lookAt` + `offset` en coordenadas locales, multiplicados por `aiPipelineScale`; vuelo de 1.8 s. En escritorio `AI_PANEL_LOOK_SHIFT = 0.5` centra el sujeto en el área libre; en móvil `AI_MOBILE_LOOK_DROP = 0.5`. **Pasada 15:** los offsets se acortaron (2.15–3.7) para que el zoom sea claramente más cercano. |
+| Interacción | Cuatro hitboxes invisibles (editor, Cursor, RAG, CI/CD) escriben `activeSubSection`. Leyenda, dropdown y clics 3D abren el mismo panel y el mismo plano de cámara. |
+
+**Cómo se comprobó** (Chrome headless con GPU real, 1052×785): clic 3D sobre la torre →
+AUTOMATION PIPELINE; los cuatro botones de la leyenda abren su panel y su plano; el clic del
+editor y de los tres nodos ya se había comprobado; a 386×776 el panel pasa a hoja inferior y
+sigue abriendo; **0 errores ni warnings de consola**; `npx tsc --noEmit` y `npm run build` OK.
+
+**Gotchas (no volver a romperlos)**
+
+1. **`AI_OUTPUT_POS.y = -0.15` está calibrado contra el HUD de métricas.** Con `y=0.3` la
+   etiqueta «CI/CD» quedaba detrás del panel `TODAY · AI METRICS` (arriba-derecha). La curva
+   del flujo y la conexión de salida terminan en `y=-0.09`: si vuelves a mover la torre,
+   mueve también esos puntos o el flujo entrará por encima de las puertas.
+2. **El plano de Automation mira a `y=0.2`**, por encima del centro de la torre: así el
+   conjunto baja en pantalla y «CI/CD» no queda detrás del chip AUTOMATION de la leyenda.
+   Con `y=-0.1` la etiqueta se perdía en el plano cercano.
+3. **La hitbox de CI/CD es hija del grupo de salida.** Al bajar la torre, el área de clic se
+   movió con ella; se verificó con un clic sintético en `(900, 370)` a 1052×785. Si cambias
+   `AI_OUTPUT_POS`, recalcula el punto de clic o pruébalo en navegador.
+4. **`AI_SUB_VIEWS` debe seguir el orden de `section03.subButtons`** (Copilot, Cursor, RAG,
+   Automation). Reordenar herramientas sin reordenar los planos enfoca otra etapa.
+5. **`aiPipelineScale` se aplica dos veces:** al grupo raíz de la escena y a las anclas de la
+   cámara. Si solo se aplica a uno, en tablet/móvil el zoom cae al lado del icono.
+6. **La etiqueta NEURAL CORE vive fuera de `coreGroupRef`.** Dentro heredaría el giro del
+   núcleo y el texto dejaría de leerse. Lo mismo aplica a cualquier etiqueta nueva.
+7. **El tooltip del editor se oculta cuando hay una ficha abierta**
+   (`visible={hover === 'editor' && activeSubSection === null}`): con el zoom, el tooltip
+   quedaba detrás de la tarjeta héroe y duplicaba el nombre que ya muestra el panel.
+8. **No bajar más la torre para esquivar el chat.** En la vista general el chat (capa DOM)
+   tapa la base del pipeline; al abrir una ficha se oculta y la torre se ve completa. Bajarla
+   más devolvería la etiqueta «CI/CD» al conflicto con las métricas.
+9. **En móvil el panel es una hoja inferior** que cubre la mayor parte del pipeline; es el
+   comportamiento esperado del panel, no un fallo. No compensar en X en ese ancho.
+10. **Las etiquetas siguen saliendo de `makeLabelTexture()` y se liberan al desmontar.** No
+    añadir fuentes ni texturas remotas: el texto se dibuja en canvas con la fuente del proyecto.
+
+### Añadido (pasada 12): diorama GLB optimizado en Creative 3D
+
+La zona 3 dejó de ser geometría procedural (TorusKnot, barras, torta, líneas y chispas) y ahora
+muestra el diorama industrial de `models/Creative.glb` en una vitrina neón. El GLB fuente tiene
+1.808 nodos de malla, 43 geometrías compartidas, 113.334 triángulos renderizados y ninguna
+textura. Se optimizó a **45 `InstancedMesh` con `EXT_mesh_gpu_instancing`**, colores por
+instancia (`_COLOR_0`), 16.008 vértices únicos y **586 KB**, conservando los 113.334 triángulos.
+
+| Aspecto | Detalle |
+|---------|---------|
+| Fuente | `models/Creative.glb` (ignorado por git), 420 × 264 × 420 unidades, base en y=0. |
+| Optimización | Carga en Node con `GLTFLoader.parse`; agrupa por `geometry.uuid` + clave de transparencia/opacidad; clona cada geometría una sola vez, la deja indexada, descarta todo atributo salvo `position`/`normal` y crea un `InstancedMesh` por grupo con matriz `normalización × matrixWorld` y color del material fuente. Exporta con `GLTFExporter` (`binary: true`). |
+| Normalización | Escala a **4,4 de ancho**, centrada en XZ y con la base en y=0. La matriz de normalización se hornea en las matrices de instancia. |
+| Materiales | Dos `MeshStandardMaterial`: opaco blanco (`roughness: 1`, `metalness: 0`) y vidrio por nivel de opacidad (`transparent`, `depthWrite: false`). El color del material original vive en `instanceColor`. |
+| Asset web | `public/models/creative.glb` (586 KB, versionado). El fuente de `models/` no se toca. |
+| `CreativeZone.tsx` | Vitrina: rejilla, halo, dos aros y 40 ticks orbitando (un `<points>`); el diorama gira como tornamesa (`0.09 rad/s`) y flota ±0.035. Carga diferida al visitar la zona por primera vez y **se queda montado** al salir para que el vuelo de salida no lo haga desaparecer. |
+| Encuadre | `zones.ts`: cámara `[52.8, 3.35, -4.65]` mirando a `[48, -0.05, -12]` (tres cuartos elevado). `CameraController` añade `CREATIVE_SUB_VIEWS` a ~9 unidades: frontal elevado, tres cuartos derecho y picado. En escritorio el look-at se corre `0.9` a la izquierda del panel; en móvil baja `1.95` para que el edificio quede sobre la hoja inferior. |
+| Movimiento reducido | Giro y flotación a cero, ticks estáticos; la cámara aterriza sin tween. |
+
+**Cómo se comprobó** (Chrome headless con GPU real): 1052×785 → **59,9 FPS / 150 frames en
+2,5 s**, los tres sub-temas abren su panel con el diorama completo, ida y vuelta a Digital Twin
+sin pop-in; 386×776 → los tres sub-temas dejan el edificio visible sobre la hoja inferior;
+**0 errores ni warnings de consola**; `npx tsc --noEmit` y `npm run build` OK.
+
+**Gotchas (no volver a romperlos)**
+
+1. **No fusionar las 1.808 piezas en una sola malla.** El primer intento produjo 12,2 MB y
+   ~340k vértices al perder la reutilización de geometría. Instanciar por geometría deja 45
+   draw calls y 586 KB. El GLB fuente comparte 43 geometrías entre 1.808 nodos.
+2. **Nunca mutar las geometrías compartidas.** Aplicar `applyMatrix4` in-place nodo a nodo
+   transformó la misma geometría 1.808 veces y produjo bounding spheres NaN. El optimizador
+   clona una geometría por grupo y hornea la transformación en la matriz de instancia.
+3. **`envMapIntensity` necesita un `envMap` propio.** Con `MeshStandardMaterial` y
+   `envMap === null`, three r169 pisa la intensidad con `scene.environmentIntensity`. En
+   `Diorama` se asigna `material.envMap = scene.environment` y `envMapIntensity = 0.55`; sin
+   eso el verde de la base se iba a amarillo y el ACES lavaba las fachadas. Es el mismo gotcha
+   que en `CityZone`, pero aquí el material sí es PBR.
+4. **El GLB ya viene normalizado.** `MODEL_BASE_Y = -1.32`, `MODEL_HEIGHT = 2.77` y la caja del
+   fallback (`4.4 × 2.77 × 4.4`) dependen de la exportación actual. Si reemplazas el modelo,
+   vuelve a normalizarlo a 4,4 de ancho con la base en y=0 o actualiza esas constantes.
+5. **El diorama se renderiza desde la caché de drei; no se clona.** El `<group ref>` sólo aplica
+   rotación y flotación. No muevas la raíz de `scene` ni escribas transforms en el objeto
+   cacheado: afectaría a cualquier otro montaje y al volver a la zona.
+6. **Los planos de sub-tema son propios, no el arco genérico 0.62×.** A 4,6 unidades el diorama
+   se partía por la mitad. Las tres vistas rondan las 9 unidades y mantienen la cámara en X ≥ la
+   del sujeto para no dejar ver los edificios del Digital Twin al fondo. El desplazamiento de
+   panel es `0.9` en escritorio; en móvil `1.95` (con 1.1 el edificio quedaba detrás de la hoja).
+7. **El GLB no tiene UVs ni texturas a propósito.** El color por pieza sale de
+   `instanceColor`; no añadas materiales con mapas sin reexportar UVs.
+8. **La zona se arma en la primera visita y no se desmonta.** Si se desmontara al salir, el
+   diorama desaparecería durante el vuelo de salida; su geometría es pequeña y drei ya cachea el
+   asset. Para liberar memoria habría que hacerlo con una estrategia explícita, no con un gate
+   por `activeZone`.
+
+### Añadido (pasada 13): rediseño del dron del Configurator
+
+El modelo anterior (casco blanco + dos aros gigantes + dos brazos) se leía como un platillo
+volante y no como un producto. Se rehízo como un **cuadricóptero modular de 13 grupos**: casco,
+cúpula, batería, LiDAR/sensores, antena, gimbal, lente, cuatro brazos (boom + motor + aro de
+protección + rotor de tres palas) y dos patines de aterrizaje. Sigue siendo procedural: no hay
+GLB ni texturas nuevas.
+
+| Pieza | Detalle |
+|-------|---------|
+| Casco (`hull`) | Cápsula achatada plateada, panza y morro de grafito, placas laterales con tiras naranja, rejilla trasera y **aviónica interior** (placa + chips + LEDs) que queda oculta bajo la cúpula y se descubre al despiezar. |
+| Cúpula (`canopy`) | Semiesfera de cristal oscuro con aro, espina y dos costillas plateadas. |
+| Batería (`battery`) | Pack plateado con tira naranja, abrazaderas de grafito y placa de montaje. |
+| Sensores (`sensor`) | Domo LiDAR con aro naranja y dos cámaras frontales con lente emisiva. |
+| Antena (`antenna`) | Mástil trasero inclinado con punta naranja y aleta. |
+| Gimbal + lente | Suspensión de horquilla, carcasa de cámara y barril con cristal naranja propio (`lens`), separado del gimbal para que el despiece lo expulse hacia delante. |
+| Brazos (`armFL/FR/RL/RR`) | Boom de 0.9, nacela, anillo naranja, **aro de protección de radio 0.42 con tres soportes**, rotor de tres palas con punta naranja y luz de navegación. |
+| Patines (`skidLeft/Right`) | Raíl tipo cápsula, dos soportes y tope naranja. |
+
+**Animación:** se conservan las cuatro fases del scroll. Se añade el giro continuo de los cuatro
+rotores (7.5 rad/s, sentidos alternos) y `fitScale` pasa a 0.82 / 0.9 / 1 para que el despiece
+quepa en vertical. El cambio plata→naranja sigue afectando al material compartido del chasis;
+las piezas de grafito y el acento naranja no se repintan.
+
+**Cómo se comprobó** (Chrome headless con GPU real, 1052×785 y 386×776): hero, despiece completo
+(offset 0.5), material (0.62), reensamblado (1.0) y movimiento reducido; **59,9 FPS / 150 frames**
+en el despiece abierto; **0 errores ni warnings de consola**; `npx tsc --noEmit` y
+`npm run build` OK.
+
+**Gotchas (no volver a romperlos)**
+
+1. **Los 13 `PART_IDS` deben existir en el JSX y en `EXPLODE_OFFSETS`.** El tipo
+   `Record<PartId, …>` obliga a declarar el offset, pero un grupo sin `register(id)` no se
+   animaría. Si añades una pieza, regístrala y dale offset.
+2. **Los rotores son hijos de los brazos.** Los grupos de brazo sólo rotan en Y, así que el giro
+   local de los rotores sigue siendo horizontal. No inclines los brazos en X/Z o las aspas
+   cabecearán.
+3. **El giro del rotor usa `elapsed * 7.5`, no acumulación por frame.** Es estable al cambiar de
+   zona y con el scroll; con movimiento reducido se fuerza a 0. No mezclar ambas estrategias.
+4. **La lente es un módulo aparte del gimbal.** Si la metes dentro del gimbal, elimina su entrada
+   de `EXPLODE_OFFSETS` y su `register`; si no, se moverá dos veces.
+5. **Un material por familia, compartido entre mallas.** `shell` (plata→naranja), `dark`
+   (grafito), `glass` (cúpula), `lens` (pulso) y `accent` (tiras, puntas, luces). Clonar el
+   material por malla rompe la transición de color en bloque.
+6. **En vertical, `fitScale` 0.82/0.9/1.** Con 0.92 el rotor extremo se recortaba en el despiece
+   completo a 386 px. Si cambias los offsets de los brazos, vuelve a comprobar los bordes.
+7. **El anillo de protección no debe crecer sin revisar el encuadre.** Radio 0.42 deja el dron en
+   ~2.8 unidades de ancho; el plano de cámara del Configurator no se tocó. Un aro mayor vuelve a
+   invadir el texto de `ScrollUI`.
+8. **Para probar el scroll en headless**, el contenedor de drei se añade como hijo del wrapper
+   del `<canvas>` (no de `<main>`); hay que buscar el hijo con `overflow-y: auto` y escribir su
+   `scrollTop`. Buscar solo por `scrollHeight` encuentra el contenedor equivocado.
+
+### Añadido (pasada 14): pre-order funcional del Configurator
+
+El botón **PRE-ORDER NOW** de la zona 6 ya no es decorativo: abre un flujo de
+reserva completo, local y sin backend (`ui/PreOrderModal.tsx`).
+
+| Paso | Qué hace |
+|------|----------|
+| 01 Configure | Tres ediciones (`EXPLORER`, `PRO`, `ENTERPRISE`), tres acabados con recargo, cantidad 1–5 y resumen de precio en vivo (subtotal + envío + total). |
+| 02 Pilot | Nombre, email, empresa opcional y región de entrega. Validación en cliente con `aria-invalid`, `role="alert"` y foco al primer campo inválido. |
+| 03 Confirmed | Procesado simulado (1,5 s; 450 ms con movimiento reducido) y confirmación con referencia `AER-26-XXXX`, ETA y resumen. |
+
+**Contenido:** todo el copy, ediciones, acabados, regiones, etiquetas y errores viven en
+`portfolioContent.section06.preorder`. El componente no duplica cadenas y sólo calcula precio y
+estado. La referencia se genera con `Math.random()` en el cliente: **no se envía nada**.
+
+**Interacción y accesibilidad**
+
+- El botón declara `aria-haspopup="dialog"`, `aria-expanded` y `aria-controls="preorder-dialog"`.
+- El modal se monta en un **portal de `document.body`** y usa `role="dialog"`, `aria-modal`,
+  `aria-labelledby`, foco inicial en cerrar, `Escape` para cerrar, trampa de Tab y devolución del
+  foco al botón que lo abrió (sólo si sigue conectado).
+- Al cambiar de paso, el foco va al encabezado del paso (`tabIndex={-1}`); si se vuelve a
+  configurar, va a la primera edición. Así el foco nunca cae en `<body>` dentro del diálogo.
+- Las tarjetas de edición y los acabados son `<button>` con `aria-pressed`; la cantidad usa
+  `output` con `aria-live`. La zona no cambia con ←/→ mientras el diálogo tiene el foco: el hook
+  global excluye `.preorder-backdrop` / `.preorder-modal` en `UI_OWNS_KEYS_SELECTOR` y
+  `DIALOG_SELECTOR`.
+- `prefers-reduced-motion` conserva el paso de procesado pero acorta el retardo; el spinner queda
+  estático y Framer Motion omite la entrada.
+
+**Gotchas (no volver a romperlos)**
+
+1. **El modal va en portal, no dentro de `.product-scroll-container`.** Ese contenedor tiene
+   `pointer-events: none` y sus animaciones crean un contexto propio; además, la rueda debe seguir
+   llegando a `ScrollControls` sólo cuando el diálogo está cerrado. El portal a `body` con
+   `z-index: 95` lo deja sobre el dossier (90) y bajo el cursor (200).
+2. **No secuestrar la rueda del configurador al cerrar.** El backdrop y el modal son eventos DOM
+   independientes de la capa de ScrollControls; no añadir listeners globales de `wheel`/`touch`
+   para “bloquear” el scroll. Con el overlay abierto los eventos ya no llegan a su div.
+3. **El anillo de foco programático del encabezado se anula a propósito.**
+   `.preorder-body-title:focus-visible { outline: none !important; }`: el `tabIndex={-1}` existe
+   sólo para que el lector de pantalla anuncie el paso, no para indicar un control.
+4. **La trampa de Tab también cubre el caso “foco fuera del diálogo”.** Si un botón se desmonta
+   (por ejemplo al pasar de confirmación a configuración), el foco puede quedar en `<body>`; tanto
+   `Shift+Tab` como `Tab` lo recuperan dentro del modal.
+5. **La confirmación va en dos columnas en escritorio** (`minmax(0,1fr) 300px`). Con una sola
+   columna los botones quedaban bajo el pliegue a 1052×785. En ≤820 px vuelve a una columna.
+6. **El total se recalcula, no se acumula.** `(precioEdición + recargoAcabado) * cantidad + envío`
+   a partir del estado actual; no guardar subtotales derivados en el store.
+7. **El proceso no debe prometer backend.** Los textos `demoNote` y la confirmación dicen
+   explícitamente que no hay cobro ni envío de datos. Si algún día se conecta un servicio real,
+   hay que cambiar el copy y añadir manejo de errores de red (hoy no existe a propósito).
+8. **Verificado en headless (1052×785 y 386×776):** configuración de Enterprise + Ember + 3
+   unidades ($12.210), envío a LATAM ($12.400), errores vacío/inválido, confirmación con
+   referencia y ETA, `Escape` con foco devuelto al botón, clic en backdrop, `Tab` atrapado,
+   reinicio con CONFIGURE ANOTHER y apertura en móvil; `npx tsc --noEmit` y `npm run build` OK.
+
+### Añadido (pasada 15): zoom AI, interacción del diorama y guion completo
+
+Cinco correcciones pedidas por el dueño sobre la experiencia existente.
+
+**1. Cámara AI más cercana y nodo Copilot fuera**
+
+- `AI_SUB_VIEWS` acorta los offsets a **2.15–3.7** (el plano general no cambia). Cada herramienta
+  llena el encuadre al seleccionarla; `AI_PANEL_LOOK_SHIFT` baja a **0.5** para centrarla en el
+  área libre a la izquierda de la ficha (en móvil sigue `AI_MOBILE_LOOK_DROP = 0.5`).
+- Se eliminó el nodo flotante **Copilot** del cerebro (no tenía acción): su hitbox, su nodo
+  orbitando, su etiqueta y su ancla en `aiWorkflowLayout.ts`. Copilot sigue existiendo como
+  concepto y se abre desde el editor o desde la leyenda, así que `section03.subButtons` y
+  `AI_SUB_VIEWS` conservan las cuatro entradas y su orden.
+
+**2. Creative 3D: camión, tanques y edificio clicables**
+
+- Los tres objetos tienen caja proxy invisible + jaula wireframe al hover/foco, pero los proxies
+  se solapan en pantalla y el raycast siempre elige el más cercano: desde el plano general **el
+  camión era inalcanzable** (una rejilla de clics de 20 px sólo acertaba edificio y tanques).
+- Solución: tres **pines DOM anclados al mundo 3D** con drei `<Html>` sobre
+  `CREATIVE_OBJECTS`. Giran con la tornamesa porque viven dentro del grupo del diorama, pero el
+  clic no compite con el raycast. `zIndexRange={[60, 0]}` los deja **bajo** el `DetailPanel`
+  (z-65) y las pestañas (z-70/80). La etiqueta sale de
+  `getSubSectionContent(CREATIVE_ZONE_INDEX, id).label`, sin duplicar copy.
+- Clic = `setActiveSubSection` (toggle) + `setOpenDropdown(-1)`; hover/focus enciende la misma
+  jaula 3D y `sceneHover` del cursor. En ≤640 px los pines se colapsan a un **punto de 26 px**
+  (las etiquetas de camión y tanques se solapaban con ~39 px de separación) y la etiqueta se
+  despliega sólo en `:hover`, `:focus-visible` o `.is-active`; el `aria-label` conserva el nombre
+  accesible aunque el texto esté oculto.
+
+**3. Digital Twin en modo guion: un plano por nivel de consumo**
+
+`GuidedTour` inyecta cuatro tomas de `CITY_FILTER_MS = 4200` tras el plano general de la ciudad:
+**ALL → NORMAL → HIGH → ALERT**, cada una con `setEnergyFilter(filter)` y sin sub-tema abierto.
+Los chips de `CityHUD` se actualizan solos porque leen el mismo estado. `setZone` reinicia el
+filtro, así que la toma fija **primero** la zona y **después** el filtro.
+
+**4. Configurator en modo guion: scroll automático y pre-order**
+
+- Nuevo `guidedProductStep` en el store. `ProductZone.useFrame` escribe
+  `scroll.el.scrollTop = step / (SCROLL_SECTIONS.length - 1) · (scrollHeight - clientHeight)`
+  cuando el paso no es `null` y el elemento está conectado. El scroll DOM sigue siendo la
+  autoridad del offset: `productScroll` y `productPhase` no cambian y **la cámara no se toca**.
+- Tomas: establecimiento (3,5 s), pasos 1–3 a `PRODUCT_STEP_MS = 4500` y cierre de 2,6 s con
+  `requestPreorder()`. `ScrollUI` escucha el contador `preorderRequests` y abre
+  `PreOrderModal`; el guion termina con `setGuided(false)` y **deja el modal abierto**, sin
+  teletransportar a la zona 0.
+- El guion completo son **32 tomas** (~141 s). Las zonas 0–3 mantienen plano general + sub-temas +
+  outro; ciudad y configurador no llevan outro porque su última toma ya es la conclusión.
+
+**Gotchas (no volver a romperlos)**
+
+1. **Los pines de Creative son DOM y no deben subir de z-60.** Si se ponen por encima de la
+   ficha (z-65) o de las pestañas (z-70), flotan sobre los paneles abiertos. Tampoco añadir
+   `distanceFactor`: el pin debe conservar tamaño de clic constante.
+2. **No quitar los proxies 3D al añadir los pines.** Los pines resuelven la selección cuando el
+   objeto está tapado; los proxies siguen dando clic directo y la jaula de hover sobre la pieza.
+3. **En móvil el pin colapsado necesita `aria-label`.** La etiqueta usa `display: none` y deja de
+   aportar nombre accesible al `<button>`; el `aria-label` es lo único que anuncia el lector.
+4. **`guidedProductStep` es estado imperativo, no offset.** No escribir `productScroll.offset`
+   directamente: ScrollControls reescribe el offset desde su DOM y el HUD se desincroniza. El
+   paso se limpia al salir y al entrar de nuevo en la zona (`setZone` resetea `productPhase`;
+   el guion vuelve a fijar el paso en cada toma).
+5. **El pre-order del guion se abre por contador, no por estado booleano.** `requestPreorder()`
+   incrementa `preorderRequests`; un booleano se quedaría en `true` y no volvería a abrir el
+   modal en una segunda pasada del guion.
+6. **Los filtros de ciudad van después de `setZone`.** `setZone` limpia `energyFilter` a `'all'`;
+   invertir el orden haría que la toma NORMAL se viera como ALL.
+7. **El zoom AI no debe invadir el HUD.** Los offsets cortos se calibraron con
+   `AI_PANEL_LOOK_SHIFT = 0.5`; subir el zoom sin revisar deja la etiqueta de la etapa debajo de
+   la leyenda o de las métricas.
+8. **`AI_SUB_VIEWS` sigue el orden de `section03.subButtons`** (Copilot, Cursor, RAG,
+   Automation) aunque el nodo 3D de Copilot ya no exista: el editor sigue abriendo ese plano.
+
+**Cómo se comprobó** (Chrome headless con GPU real): 1052×785 → pines de camión, tanques y
+edificio abren VEHICLE ASSET / STORAGE FARM / HERO BUILDING; el guion recorre los cuatro filtros
+con los chips sincronizados y el configurador con offsets 0 → 0.333 → 0.666 → 1, PRE-ORDER
+visible en la página 3 y modal `RESERVE YOUR AERIS` abierto al terminar. 386×776 → los pines
+colapsados no se solapan, el panel se abre correctamente en los tres y el pre-order funciona.
+Movimiento reducido: cámara sin tween, pines sin pulso, guion sin typewriter. **0 errores de
+consola**; `npx tsc --noEmit` y `npm run build` OK.
 
 ---
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 /** Radial-gradient sprite so points read as soft orbs, not hard squares. */
 function makeGlowTexture(): THREE.CanvasTexture {
@@ -38,6 +39,7 @@ export default function DustField({
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const texture = useMemo(() => makeGlowTexture(), [])
+  const reducedMotion = useReducedMotion()
 
   // Deterministic-ish scatter across a box; each particle drifts on its own
   // phase so the field never moves as a rigid block.
@@ -66,6 +68,12 @@ export default function DustField({
   const baseY = useMemo(() => Float32Array.from(positions.filter((_, i) => i % 3 === 1)), [positions])
 
   useFrame((state) => {
+    // Movimiento reducido: el polvo queda quieto y sin rotación de conjunto;
+    // conserva la profundidad como fondo estático.
+    if (reducedMotion) {
+      if (groupRef.current) groupRef.current.rotation.y = 0
+      return
+    }
     const t = state.clock.elapsedTime
     const arr = geo.attributes.position.array as Float32Array
     for (let i = 0; i < count; i++) {

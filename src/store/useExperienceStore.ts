@@ -137,6 +137,21 @@ export interface ExperienceState {
   productPhase: number
   setProductPhase: (phase: number) => void
 
+  /**
+   * Tour guiado del Configurator: página a la que la escena debe llevar el
+   * scroll sola. `null` = control manual. Vive en el store porque el scroll
+   * lo posee `ScrollControls` (Canvas) y lo dirige `GuidedTour` (DOM).
+   */
+  guidedProductStep: number | null
+  setGuidedProductStep: (step: number | null) => void
+  /**
+   * Contador de peticiones para abrir el modal de pre-order desde el tour.
+   * Se usa un contador (no un booleano) para que varias peticiones seguidas
+   * sigan disparando el efecto sin depender de un reset intermedio.
+   */
+  preorderRequests: number
+  requestPreorder: () => void
+
   /** Sub-sección activa para zonas 0-3 (Architecture, Testing, AI, Creative). */
   activeSubSection: string | null
   setActiveSubSection: (id: string | null) => void
@@ -158,6 +173,7 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
       sceneHover: false,
       activeSubSection: null,
       productPhase: 0,
+      guidedProductStep: null,
       // El filtro es una vista de la ciudad, no una preferencia global:
       // al salir de la zona debe volver a "todos".
       energyFilter: 'all',
@@ -167,7 +183,10 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
   toggleDropdown: (index) =>
     set((state) => ({ openDropdown: state.openDropdown === index ? -1 : index })),
   setPhase: (phase) => set({ phase }),
-  setGuided: (guided) => set({ guided }),
+  // Al detener el tour, el scroll vuelve a ser manual. Si no se limpia,
+  // el siguiente frame devolvería la página a la posición del guion.
+  setGuided: (guided) =>
+    set(guided ? { guided } : { guided, guidedProductStep: null }),
 
   selectedBuilding: null,
   setSelectedBuilding: (building) => set({ selectedBuilding: building }),
@@ -210,6 +229,12 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
     set({
       productPhase: Math.max(0, Math.min(PRODUCT_PHASE_COUNT - 1, Math.round(phase))),
     }),
+
+  guidedProductStep: null,
+  setGuidedProductStep: (step) => set({ guidedProductStep: step }),
+  preorderRequests: 0,
+  requestPreorder: () =>
+    set((state) => ({ preorderRequests: state.preorderRequests + 1 })),
 
   activeSubSection: null,
   setActiveSubSection: (id) => set({ activeSubSection: id }),

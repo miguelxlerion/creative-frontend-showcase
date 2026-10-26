@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { ZoneConfig } from '../../config/zones'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { globalPointer } from '../globalPointer'
 
 /**
@@ -80,6 +81,7 @@ export default function ArchitectureZone({ zone }: { zone: ZoneConfig }) {
   // Estado del seguimiento y del habla, en un ref para no reasignarlo nunca.
   // `look` guarda la pose ya amortiguada; `speech` la apertura actual de boca.
   const motion = useRef({ yaw: 0, pitch: 0, speech: 0 })
+  const reducedMotion = useReducedMotion()
 
   // Partículas de identidad: posiciones procedurales memorizadas, para que el
   // buffer no se recree en cada render (y para tener valores base estables).
@@ -127,6 +129,47 @@ export default function ArchitectureZone({ zone }: { zone: ZoneConfig }) {
     const t = state.clock.elapsedTime
     const dt = Math.min(delta, 0.1) // tope: si el tab queda en background, no saltes
     const m = motion.current
+
+    // Movimiento reducido: se congela la cara en una pose neutra (ojos
+    // abiertos, boca cerrada, sin escáner ni partículas orbitando). Se
+    // reaplica cada frame para recuperar la calma incluso si la preferencia
+    // se activa a mitad de una animación.
+    if (reducedMotion) {
+      m.yaw = 0
+      m.pitch = 0
+      m.speech = 0
+      if (faceRef.current) {
+        faceRef.current.position.y = 0
+        faceRef.current.rotation.set(0, 0, 0)
+      }
+      leftEyeRef.current?.scale.set(EYE_SCALE[0], EYE_SCALE[1], EYE_SCALE[2])
+      rightEyeRef.current?.scale.set(EYE_SCALE[0], EYE_SCALE[1], EYE_SCALE[2])
+      if (leftIrisRef.current) leftIrisRef.current.position.set(-0.42, 0.38, 0.33)
+      if (rightIrisRef.current) rightIrisRef.current.position.set(0.42, 0.38, 0.33)
+      if (jawRef.current) {
+        jawRef.current.position.y = -0.02
+        jawRef.current.rotation.x = 0
+      }
+      if (mouthGlowRef.current) {
+        mouthGlowRef.current.scale.set(1, 0.12, 1)
+        const mat = mouthGlowRef.current.material as THREE.MeshBasicMaterial
+        mat.opacity = 0.3
+      }
+      if (mouthRef.current) {
+        const upper = mouthRef.current.children[0] as THREE.Mesh | undefined
+        const mat = upper?.material as THREE.MeshBasicMaterial | undefined
+        if (mat) mat.opacity = 0.7
+      }
+      if (reticleRef.current) reticleRef.current.rotation.z = 0
+      scanRefs.current.forEach((mesh, i) => {
+        if (!mesh) return
+        const spot = SCAN_RINGS.length > 1 ? i / (SCAN_RINGS.length - 1) : 0.5
+        mesh.position.y = THREE.MathUtils.lerp(SCAN_Y_MIN, SCAN_Y_MAX, spot)
+        const mat = mesh.material as THREE.MeshBasicMaterial
+        mat.opacity = 0.25
+      })
+      return
+    }
 
     // 0) SEGUIMIENTO DEL PUNTERO. Usamos el puntero GLOBAL (escuchado en
     //    `window`) y no `state.pointer` de R3F: este último sólo se alimenta

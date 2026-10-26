@@ -12,6 +12,7 @@ import CityZone from './zones/CityZone'
 import ProductZone from './zones/ProductZone'
 import CameraController from './CameraController'
 import DustField from './DustField'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 import {
   BLOOM_RESOLUTION,
   CONTACT_SHADOW_RESOLUTION,
@@ -112,6 +113,7 @@ export default function Scene() {
   // Forzar color de fondo (el canvas a veces ignora el clearColor del CSS)
   const { gl } = useThree()
   if (gl) gl.setClearColor('#05050a', 1)
+  const reducedMotion = useReducedMotion()
 
   return (
     <>
@@ -123,8 +125,9 @@ export default function Scene() {
           nuestro clearColor #05050a visible. */}
       <Environment preset="city" background={false} resolution={ENV_RESOLUTION} />
 
-      {/* Campo de estrellas lejano (parallax sutil, da profundidad). */}
-      <Stars radius={120} depth={80} count={STAR_COUNT} factor={4} />
+      {/* Campo de estrellas lejano (parallax sutil, da profundidad).
+          `speed={0}` con movimiento reducido: drei no rota el grupo. */}
+      <Stars radius={120} depth={80} count={STAR_COUNT} factor={4} speed={reducedMotion ? 0 : 1} />
 
       {/* Campo de polvo local con parallax (sensación de viaje). */}
       <DustField count={DUST_COUNT} />

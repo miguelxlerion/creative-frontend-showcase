@@ -1,4 +1,5 @@
 import type { Vector3Tuple } from 'three'
+import { portfolioContent } from '../data/portfolioContent'
 
 /**
  * Zone registry.
@@ -29,12 +30,20 @@ export interface ZoneConfig {
   lookAt: Vector3Tuple
   /** Neon accent used by 3D emissive materials + HUD. */
   accent: string
+  /**
+   * Variante aclarada del acento para TEXTO DOM. El acento original se
+   * reserva para materiales 3D, bordes y fondos; como color de texto, algunos
+   * neones no llegan al 4.5:1 de WCAG AA sobre #05050a.
+   */
+  accentText: string
   /** HUD headline number/value, rendered big + bold (e.g. "85%+"). */
   stat: string
   /** Small uppercase tag describing the stat (e.g. "CODE COVERAGE"). */
   hudLabel: string
   /** HUD supporting line. */
   subtitle: string
+  /** Optional pill rendered under the HUD subtitle (e.g. a headline metric). */
+  badge?: string
   /** Anchor for the HUD card, relative to the zone origin. */
   hudOffset: Vector3Tuple
   /** Optional 0..1 fill for the progress bar (rendered when present). */
@@ -42,6 +51,23 @@ export interface ZoneConfig {
   /** Sub-navigation buttons for this zone. */
   subButtons: SubButtonConfig[]
 }
+
+/**
+ * La copia de la zona AI vive en `portfolioContent` (fuente única). Aquí sólo
+ * se adapta a la forma que consumen el menú y el dossier: así los cuatro
+ * sub-temas no se duplican y el panel siempre coincide con la navegación.
+ */
+const AI_SUB_BUTTONS: SubButtonConfig[] = portfolioContent.section03.subButtons.map(
+  (sub) => ({
+    id: sub.id,
+    label: sub.label,
+    content: {
+      title: sub.title,
+      text: sub.description,
+      metrics: [...sub.metrics],
+    },
+  }),
+)
 
 export const ZONES: ZoneConfig[] = [
   {
@@ -51,6 +77,8 @@ export const ZONES: ZoneConfig[] = [
     cameraPosition: [0, 0.9, 12],
     lookAt: [0, 0.3, 0],
     accent: '#00f0ff',
+
+    accentText: '#00ffff',
     stat: 'MIGUEL E. RODRIGUEZ',
     hudLabel: 'ARCHITECTURE · SYSTEMS',
     subtitle: 'LEAD FRONT-END ENGINEER',
@@ -92,6 +120,8 @@ export const ZONES: ZoneConfig[] = [
     cameraPosition: [16.2, 0.9, 5.4],
     lookAt: [16, 0, -4],
     accent: '#00ff88',
+
+    accentText: '#66ffb3',
     stat: '85%+',
     hudLabel: 'CODE COVERAGE',
     subtitle: 'Jest · Cypress · Playwright',
@@ -134,47 +164,27 @@ export const ZONES: ZoneConfig[] = [
     cameraPosition: [32, 0.2, 0.2],
     lookAt: [32, 0, -8],
     accent: '#b026ff',
-    stat: 'AI-ASSISTED',
+
+    accentText: '#c76bff',
+    stat: 'AI-ASSISTED WORKFLOW',
     hudLabel: 'WORKFLOW PIPELINE',
-    subtitle: 'Copilot · Cursor · RAG',
+    subtitle: 'Copilot · Cursor · RAG · Automation',
+    badge: 'DAILY PRODUCTIVITY +60%',
     hudOffset: [1.4, 1.8, 1],
-    subButtons: [
-      {
-        id: 'tools',
-        label: 'AI Tools',
-        content: {
-          title: 'AI-ASSISTED DEVELOPMENT',
-          text: 'Actively use AI-assisted tools like GitHub Copilot and Cursor in daily workflow. Built Enterprise RAG Assistant connecting corporate knowledge bases to LLMs through semantic search.',
-          metrics: ['GitHub Copilot', 'Cursor IDE', 'RAG Systems']
-        }
-      },
-      {
-        id: 'automation',
-        label: 'Automation',
-        content: {
-          title: 'AUTOMATION PIPELINES',
-          text: 'Built MaxScript/Python automation pipeline that reduced 3D asset export time by 80% and eliminated manual errors. Implemented CI/CD with GitHub Actions and GitLab CI.',
-          metrics: ['80% Faster Exports', 'MaxScript/Python', 'Zero Manual Errors']
-        }
-      },
-      {
-        id: 'delivery',
-        label: 'Delivery',
-        content: {
-          title: 'DELIVERY VELOCITY',
-          text: 'Accelerate delivery without sacrificing quality. Fault-tolerant design, local buffering, load testing with Locust. Achieved 99% uptime on mission-critical IoT telemetry systems.',
-          metrics: ['99% Uptime', 'Fault-tolerant', 'Load Testing']
-        }
-      }
-    ]
+    subButtons: AI_SUB_BUTTONS,
   },
   {
     id: 'creative',
     label: 'Creative 3D',
     position: [48, 0, -12],
-    cameraPosition: [48, 0.6, -4.6],
-    lookAt: [48, 0, -12],
+    // Tres cuartos elevado y con aire: el diorama es cuadrado (4,4 × 2,77) y
+    // de frente la fachada se lee plana. Desde +X/+Z se ven fachada y lateral,
+    // y la base queda por encima de la tarjeta HUD.
+    cameraPosition: [52.8, 3.35, -4.65],
+    lookAt: [48, -0.05, -12],
     accent: '#ff0055',
+
+    accentText: '#ff6b9d',
     stat: '60 FPS',
     hudLabel: 'STABLE · REAL-TIME',
     subtitle: 'Three.js · WebGL · R3F',
@@ -219,6 +229,8 @@ export const ZONES: ZoneConfig[] = [
     cameraPosition: [70.5, 9.5, 2],
     lookAt: [64, -0.4, -16],
     accent: '#00ff88',
+
+    accentText: '#66ffb3',
     stat: '500+ BUILDINGS',
     hudLabel: 'REAL-TIME IOT',
     subtitle: 'ECO-SMART CITY TWIN',
@@ -236,6 +248,8 @@ export const ZONES: ZoneConfig[] = [
     cameraPosition: [80, 2, -11.5],
     lookAt: [80, 0.5, -20],
     accent: '#ff5500',
+
+    accentText: '#ff8a3d',
     stat: 'SCROLL-DRIVEN',
     hudLabel: 'PRODUCT CONFIGURATOR',
     subtitle: 'FUTURISTIC DRONE',

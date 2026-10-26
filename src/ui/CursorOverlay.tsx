@@ -120,7 +120,12 @@ export default function CursorOverlay() {
       aria-hidden="true"
       // Hereda el acento de la zona activa: mismo color-mix que usa el resto
       // del HUD, así el cursor y las tarjetas comparten paleta exacta.
-      style={{ '--accent': ZONES[activeZone].accent } as CSSProperties}
+      style={
+        {
+          '--accent': ZONES[activeZone].accent,
+          '--accent-text': ZONES[activeZone].accentText,
+        } as CSSProperties
+      }
     >
       <div ref={ringRef} className="cursor-ring" data-hover="off" />
       <div ref={dotRef} className="cursor-dot" />

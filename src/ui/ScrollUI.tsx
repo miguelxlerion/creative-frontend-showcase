@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PRODUCT_PHASE_COUNT, useExperienceStore } from '../store/useExperienceStore'
 import { PRODUCT_THEME } from '../config/productLayout'
@@ -7,6 +7,8 @@ import {
   productScroll,
   resetProductScroll,
 } from '../scene/zones/productScroll'
+import { useReducedMotion } from '../hooks/useReducedMotion'
+import PreOrderModal from './PreOrderModal'
 
 /**
  * HUD del Product Configurator (zona 6).
@@ -26,9 +28,27 @@ import {
 export default function ScrollUI() {
   const activeZone = useExperienceStore((s) => s.activeZone)
   const productPhase = useExperienceStore((s) => s.productPhase)
+  const preorderRequests = useExperienceStore((s) => s.preorderRequests)
   const visible = activeZone === 5
+  const [preorderOpen, setPreorderOpen] = useState(false)
+
+  // El tour guiado no puede pulsar el botón: pide la apertura por el store.
+  // Se compara contra la última petición atendida para que el contador no
+  // reabra el modal que el visitante acaba de cerrar.
+  const handledPreorderRequest = useRef(preorderRequests)
+  useEffect(() => {
+    if (preorderRequests === handledPreorderRequest.current) return
+    handledPreorderRequest.current = preorderRequests
+    if (visible) setPreorderOpen(true)
+  }, [preorderRequests, visible])
 
   const scrollTexts = portfolioContent.section06.scrollTexts
+
+  // Si se cambia de zona con el diálogo abierto (no es posible con el ratón,
+  // pero sí desde el store), se cierra para no reabrirlo al volver.
+  useEffect(() => {
+    if (!visible) setPreorderOpen(false)
+  }, [visible])
 
   if (!visible) return null
 
@@ -44,6 +64,7 @@ export default function ScrollUI() {
         style={
           {
             '--accent': PRODUCT_THEME.accent,
+            '--accent-text': PRODUCT_THEME.accentText,
             '--product-text': PRODUCT_THEME.textPrimary,
           } as React.CSSProperties
         }
@@ -60,7 +81,15 @@ export default function ScrollUI() {
           />
         ))}
 
-        <PreOrderButton phase={productPhase} />
+        <PreOrderButton
+          phase={productPhase}
+          open={preorderOpen}
+          onOpen={() => setPreorderOpen(true)}
+        />
+
+        {preorderOpen && (
+          <PreOrderModal onClose={() => setPreorderOpen(false)} />
+        )}
       </motion.div>
     </AnimatePresence>
   )
@@ -73,18 +102,35 @@ export default function ScrollUI() {
  */
 function ProgressBar() {
   const fillRef = useRef<HTMLDivElement>(null)
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
     resetProductScroll()
+  }, [])
+
+  useEffect(() => {
+    const fill = fillRef.current
+    if (!fill) return
+
+    // Movimiento reducido: la barra salta de página en página en vez de
+    // recorrer el offset amortiguado. Sigue siendo feedback de posición,
+    // pero sin un transform continuo ligado al scroll.
+    if (reducedMotion) {
+      const paint = (phase: number) => {
+        fill.style.transform = `scaleY(${phase / (PRODUCT_PHASE_COUNT - 1)})`
+      }
+      paint(useExperienceStore.getState().productPhase)
+      return useExperienceStore.subscribe((state) => paint(state.productPhase))
+    }
+
     let raf = 0
     const tick = () => {
-      const fill = fillRef.current
-      if (fill) fill.style.transform = `scaleY(${productScroll.offset})`
+      fill.style.transform = `scaleY(${productScroll.offset})`
       raf = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [reducedMotion])
 
   return (
     <div className="product-progress-bar" aria-hidden="true">
@@ -139,14 +185,31 @@ function ScrollSection({
 }
 
 /** Botón magnético Pre-order (última página). */
-function PreOrderButton({ phase }: { phase: number }) {
+function PreOrderButton({
+  phase,
+  open,
+  onOpen,
+}: {
+  phase: number
+  open: boolean
+  onOpen: () => void
+}) {
   const isVisible = phase === PRODUCT_PHASE_COUNT - 1
   const magneticRef = useRef<HTMLButtonElement>(null)
   const magnetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
-    if (!magneticRef.current) return
     const btn = magneticRef.current
+    if (!btn) return
+
+    // Con movimiento reducido el botón no persigue al cursor.
+    if (reducedMotion) {
+      magnetRef.current = { x: 0, y: 0 }
+      btn.style.transform = ''
+      return
+    }
+
     const onMouseMove = (e: MouseEvent) => {
       const rect = btn.getBoundingClientRect()
       const cx = rect.left + rect.width / 2
@@ -166,14 +229,19 @@ function PreOrderButton({ phase }: { phase: number }) {
       btn.removeEventListener('mousemove', onMouseMove)
       btn.removeEventListener('mouseleave', onMouseLeave)
     }
-  }, [])
+  }, [reducedMotion, isVisible])
 
   if (!isVisible) return null
 
   return (
     <motion.button
       ref={magneticRef}
+      type="button"
       className="product-preorder-btn"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls="preorder-dialog"
+      onClick={onOpen}
       style={{
         background: PRODUCT_THEME.accent,
         boxShadow: `0 0 40px ${PRODUCT_THEME.accent}, 0 0 80px ${PRODUCT_THEME.accent}80`,
@@ -182,8 +250,15 @@ function PreOrderButton({ phase }: { phase: number }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.9 }}
       transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={{ scale: 1.05, boxShadow: `0 0 60px ${PRODUCT_THEME.accent}, 0 0 120px ${PRODUCT_THEME.accent}AA` }}
-      whileTap={{ scale: 0.96 }}
+      whileHover={
+        reducedMotion
+          ? undefined
+          : {
+              scale: 1.05,
+              boxShadow: `0 0 60px ${PRODUCT_THEME.accent}, 0 0 120px ${PRODUCT_THEME.accent}AA`,
+            }
+      }
+      whileTap={reducedMotion ? undefined : { scale: 0.96 }}
     >
       PRE-ORDER NOW
     </motion.button>

@@ -11,13 +11,22 @@ import GuidedTour from './ui/GuidedTour'
 import CityHUD from './ui/CityHUD'
 import BuildingPanel from './ui/BuildingPanel'
 import ScrollUI from './ui/ScrollUI'
+import AIAssistantChat from './ui/AIAssistantChat'
+import AIWorkflowLegend from './ui/AIWorkflowLegend'
+import AIWorkflowStats from './ui/AIWorkflowStats'
+import AccessibilitySummary from './ui/AccessibilitySummary'
 import Scene from './scene/Scene'
 import { DPR_RANGE, IS_TOUCH_FIRST } from './scene/deviceQuality'
 import { useExperienceStore } from './store/useExperienceStore'
+import { useGlobalKeyboardNav } from './hooks/useGlobalKeyboardNav'
 
 export default function App() {
   const phase = useExperienceStore((s) => s.phase)
   const guided = useExperienceStore((s) => s.guided)
+
+  // Atajos globales: ↑/↓ recorren sub-temas, Enter abre y Escape cierra
+  // devolviendo el foco al menú. Ver `useGlobalKeyboardNav`.
+  useGlobalKeyboardNav()
 
   // Simulación IoT del Digital Twin: tick cada 2 s. Se lee con getState()
   // dentro del store, así que NO re-renderiza este componente por tick.
@@ -30,22 +39,36 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Canvas
-        className="!absolute inset-0"
-        dpr={DPR_RANGE}
-        gl={{
-          // En táctil el DPR ya baja y el MSAA del composer se apaga:
-          // sumar antialias nativo aquí es pagar dos veces por lo mismo.
-          antialias: !IS_TOUCH_FIRST,
-          powerPreference: 'high-performance' as const,
-          alpha: false,
-          toneMapping: 3,
-          toneMappingExposure: 1.05,
-        }}
-        camera={{ fov: 42, near: 0.1, far: 160, position: [0, 2.6, 30] }}
-      >
-        <Scene />
-      </Canvas>
+      {/* Primer elemento enfocable del documento: visible sólo al recibir foco. */}
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+
+      {/* La escena WebGL es decorativa para la accesibilidad: no recibe foco y
+          queda oculta al árbol AT. Su contenido se publica en el resumen
+          `sr-only`, que vive fuera del Canvas. */}
+      <main id="main-content" className="app-main" tabIndex={-1}>
+        <Canvas
+          aria-hidden="true"
+          tabIndex={-1}
+          className="!absolute inset-0"
+          dpr={DPR_RANGE}
+          gl={{
+            // En táctil el DPR ya baja y el MSAA del composer se apaga:
+            // sumar antialias nativo aquí es pagar dos veces por lo mismo.
+            antialias: !IS_TOUCH_FIRST,
+            powerPreference: 'high-performance' as const,
+            alpha: false,
+            toneMapping: 3,
+            toneMappingExposure: 1.05,
+          }}
+          camera={{ fov: 42, near: 0.1, far: 160, position: [0, 2.6, 30] }}
+        >
+          <Scene />
+        </Canvas>
+
+        <AccessibilitySummary />
+      </main>
 
       {/* Film overlays */}
       <div className="grain" aria-hidden="true" />
@@ -95,6 +118,12 @@ export default function App() {
           <BuildingPanel />
           {/* Product Configurator (zona 5): scroll-driven UI + 3D product. */}
           <ScrollUI />
+          {/* AI Workflow (zona 2): asistente RAG mockeado + HUD de la
+              zona. Se montan siempre y deciden por store; se ocultan fuera
+              de su zona. La leyenda reutiliza `activeSubSection`. */}
+          <AIAssistantChat />
+          <AIWorkflowLegend />
+          <AIWorkflowStats />
         </>
       )}
 

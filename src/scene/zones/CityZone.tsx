@@ -9,6 +9,7 @@ import {
   CITY_LAYOUT,
 } from '../../config/cityLayout'
 import { STATUS_COLORS, useExperienceStore } from '../../store/useExperienceStore'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 
 /**
  * Zona 4 — "Eco-Smart City Digital Twin" (verde eco #00ff88)
@@ -486,6 +487,10 @@ export default function CityZone({ zone }: { zone: ZoneConfig }) {
 
 function CityBuildings({ zone }: { zone: ZoneConfig }) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
+  // Con movimiento reducido se apagan el pulso neón, la respiración por
+  // edificio y las interpolaciones: los cambios de estado se aplican de
+  // golpe (feedback inmediato, sin animación continua).
+  const reducedMotion = useReducedMotion()
 
   // `useDraco = false`: el GLB no usa compresión y así evitamos el decoder
   // remoto que drei configuraría por defecto.
@@ -733,7 +738,7 @@ function CityBuildings({ zone }: { zone: ZoneConfig }) {
     const colorArr = mesh.instanceColor.array as Float32Array
     const matrixArr = mesh.instanceMatrix.array as Float32Array
     // Pulso lento del neón (sin él, el brillo se siente estático).
-    const glowPulse = 0.82 + Math.sin(t * BREATH_SPEED * 1.6) * 0.18
+    const glowPulse = reducedMotion ? 1 : 0.82 + Math.sin(t * BREATH_SPEED * 1.6) * 0.18
 
     for (let i = 0; i < CITY_BUILDING_COUNT; i++) {
       const b = CITY_LAYOUT[i]
@@ -768,14 +773,15 @@ function CityBuildings({ zone }: { zone: ZoneConfig }) {
       v.targetHeights[i] = b.h * (1 + (d.energy - 50) * 0.004)
 
       // --- Interpolación exponencial (suave, independiente de fps) -----
-      const k = 1 - Math.exp(-LERP_SPEED * dt)
+      // Con movimiento reducido no hay transición: se salta al objetivo.
+      const k = reducedMotion ? 1 : 1 - Math.exp(-LERP_SPEED * dt)
       v.colors[i * 3] += (v.targetColors[i * 3] - v.colors[i * 3]) * k
       v.colors[i * 3 + 1] += (v.targetColors[i * 3 + 1] - v.colors[i * 3 + 1]) * k
       v.colors[i * 3 + 2] += (v.targetColors[i * 3 + 2] - v.colors[i * 3 + 2]) * k
       v.heights[i] += (v.targetHeights[i] - v.heights[i]) * k
 
       // --- Efectos locales --------------------------------------------
-      const breath = 1 + Math.sin(t * BREATH_SPEED + i * 0.13) * BREATH_AMOUNT
+      const breath = reducedMotion ? 1 : 1 + Math.sin(t * BREATH_SPEED + i * 0.13) * BREATH_AMOUNT
       const scaleMul = (isHover ? HOVER_SCALE : 1) * (isSel ? SELECT_SCALE : 1)
       // Hover sobre el propio seleccionado = brillo de selección. Los
       // edificios del filtro laten con la ciudad; el hover sobre uno de

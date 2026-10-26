@@ -72,7 +72,10 @@ export default function HUDOverlay() {
 
   if (!zone) return null
 
-  const accentStyle = { ['--accent' as string]: zone.accent } as React.CSSProperties
+  const accentStyle = {
+    ['--accent' as string]: zone.accent,
+    ['--accent-text' as string]: zone.accentText,
+  } as React.CSSProperties
   const zoneNumber = String(activeZone + 1).padStart(2, '0')
 
   return (
@@ -93,6 +96,7 @@ export default function HUDOverlay() {
           {zone.stat}
         </div>
         <div className="hud-sub">{zone.subtitle}</div>
+        {zone.badge && <div className="hud-badge">{zone.badge}</div>}
         {typeof zone.progress === 'number' && (
           <div className="hud-bar">
             <div
@@ -145,7 +149,7 @@ export default function HUDOverlay() {
               ref={closeBtnRef}
               type="button"
               className="detail-close"
-              aria-label="Cerrar dossier"
+              aria-label="Close dossier"
               onClick={() => setDossierOpen(false)}
             >
               ×
@@ -173,6 +177,7 @@ export default function HUDOverlay() {
               </div>
               <div className="dossier-stat">{zone.stat}</div>
               <div className="hud-sub">{zone.subtitle}</div>
+              {zone.badge && <div className="hud-badge">{zone.badge}</div>}
               {typeof zone.progress === 'number' && (
                 <div className="dossier-progress">
                   <div className="hud-bar">

@@ -22,13 +22,29 @@ export default function BuildingPanel() {
   const visible = activeZone === 4 && selected != null
   const accent = zone?.accent ?? '#00ff88'
 
+  // Al cerrar el panel, su botón desaparece: devolvemos el foco a la pestaña
+  // de la zona para que la navegación por teclado no se pierda en <body>.
+  const closePanel = () => {
+    setSelectedBuilding(null)
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-zone-btn="city"]')
+        ?.focus()
+    })
+  }
+
   return (
     <AnimatePresence>
       {visible && selected && (
         <motion.aside
           key="building-panel"
           className="building-panel"
-          style={{ ['--accent' as string]: accent } as React.CSSProperties}
+          style={
+            {
+              ['--accent' as string]: accent,
+              ['--accent-text' as string]: zone?.accentText ?? '#66ffb3',
+            } as React.CSSProperties
+          }
           role="tabpanel"
           aria-label={`Building Node ${String(selected.id + 1).padStart(3, '0')}`}
           initial={{ x: '100%', opacity: 0 }}
@@ -52,8 +68,8 @@ export default function BuildingPanel() {
             <button
               type="button"
               className="detail-close"
-              aria-label="Cerrar panel"
-              onClick={() => setSelectedBuilding(null)}
+              aria-label="Close building panel"
+              onClick={closePanel}
             >
               ×
             </button>
@@ -131,7 +147,7 @@ export default function BuildingPanel() {
             transition={{ delay: 0.5 }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => setSelectedBuilding(null)}
+            onClick={closePanel}
           >
             ⟲ RESET VIEW
           </motion.button>
