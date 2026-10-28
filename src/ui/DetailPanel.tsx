@@ -1,7 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useExperienceStore } from '../store/useExperienceStore'
 import { ZONES } from '../config/zones'
-import { getSubSectionContent } from '../data/portfolioContent'
+import {
+  getSubSectionContent,
+  portfolioContent,
+  CONTRIBUTION_ZONE_INDICES,
+} from '../data/portfolioContent'
 import AIToolIcon from './AIToolIcon'
 
 /**
@@ -204,6 +208,19 @@ export default function DetailPanel() {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {/* Autoría explícita: el panel es el punto donde el visitante ya
+            está leyendo el detalle, así que no compite con el HUD. */}
+        {CONTRIBUTION_ZONE_INDICES.includes(activeZone) && (
+          <motion.p
+            className="dp-contribution"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+          >
+            {portfolioContent.recruiter.contribution}
+          </motion.p>
         )}
       </motion.aside>
     </AnimatePresence>

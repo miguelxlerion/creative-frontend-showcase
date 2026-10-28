@@ -19,7 +19,7 @@ const TECH_CREDITS = [
 
 export default function CreditsRoll() {
   const setPhase = useExperienceStore((s) => s.setPhase)
-  const setGuided = useExperienceStore((s) => s.setGuided)
+  const setGuideModeActive = useExperienceStore((s) => s.setGuideModeActive)
   const setZone = useExperienceStore((s) => s.setZone)
   const [rollEnded, setRollEnded] = useState(false)
   const [faded, setFaded] = useState(false)
@@ -72,7 +72,7 @@ export default function CreditsRoll() {
   }, [])
 
   const back = () => {
-    setGuided(false)
+    setGuideModeActive(false)
     setZone(0)
     setPhase('experience')
   }
@@ -82,7 +82,7 @@ export default function CreditsRoll() {
     setRollEnded(false)
     setFaded(false)
     setButtonsShown(false)
-    setGuided(false)
+    setGuideModeActive(false)
     setZone(0)
     setPhase('intro')
   }

@@ -17,6 +17,7 @@ import {
   getCreativeObject,
 } from '../config/creativeLayout'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { GUIDE_CITY_BUILDING_ID, GUIDE_STEPS } from '../config/guideSteps'
 import { globalPointer } from './globalPointer'
 
 /**
@@ -44,6 +45,13 @@ const SUB_FLIGHT = 1.5
 const BUILDING_FLIGHT = 1.4
 const INTRO_FLIGHT = 6.2
 const CREDITS_FLIGHT = 7
+/**
+ * El modo guiado no usa tweens por paso: persigue la pose con un lerp del 5%
+ * por frame (normalizado a 60 fps), tal como pide el guion del video. Al salir
+ * del tour se relanza el tween normal desde la pose real.
+ */
+const GUIDE_CAMERA_LERP = 0.05
+const GUIDE_ASPECT_FIT = 0.75
 
 const CITY_ZONE_INDEX = 4
 /** El sub-plano se acerca al 62% de la distancia del plano general. */
@@ -160,6 +168,16 @@ function pullBack(pose: Pose, factor: number): Pose {
   }
 }
 
+/**
+ * Pose de la guía de teclado: el mismo plano lejano del primer frame. La
+ * cámara no empuja todavía; el push-in pertenece a la intro, que arranca
+ * cuando el visitante cierra la guía.
+ */
+const KEYS_POSE = {
+  position: new THREE.Vector3(0, 2.6, 30),
+  lookAt: new THREE.Vector3(0, 0.3, 0),
+}
+
 const INTRO_POSE = {
   position: new THREE.Vector3(0, 0.9, 9.5),
   lookAt: new THREE.Vector3(0, 0.3, 0),
@@ -188,6 +206,39 @@ function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
+/**
+ * Órbita isométrica sobre un edificio del Digital Twin. La comparten el vuelo
+ * normal (clic) y el paso 5 del tour, así el anillo 3D y la cámara miran el
+ * mismo punto.
+ */
+function buildingPose(buildingId: number, fit: number): Pose | null {
+  const zone = ZONES[CITY_ZONE_INDEX]
+  const building = CITY_LAYOUT[buildingId]
+  if (!zone || !building) return null
+
+  const center = new THREE.Vector3(
+    zone.position[0] + building.x,
+    zone.position[1] + CITY_GROUND_Y + building.h * 0.5,
+    zone.position[2] + building.z,
+  )
+  // El edificio tiene voladizos y una losa base ancha: con la fórmula
+  // anterior la fachada llenaba la pantalla y no se leía la planta.
+  const dist = 2.6 + building.h * 1.6
+
+  return pullBack(
+    {
+      position: new THREE.Vector3(
+        center.x + dist * 0.62,
+        center.y + dist * 0.55,
+        center.z + dist * 0.62,
+      ),
+      lookAt: center,
+    },
+    // Los edificios son pequeños: se compensa menos que una zona.
+    1 + (fit - 1) * 0.75,
+  )
+}
+
 export default function CameraController() {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
@@ -196,6 +247,8 @@ export default function CameraController() {
   const activeSubSection = useExperienceStore((s) => s.activeSubSection)
   const selectedBuilding = useExperienceStore((s) => s.selectedBuilding)
   const phase = useExperienceStore((s) => s.phase)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
+  const currentGuideStep = useExperienceStore((s) => s.currentGuideStep)
   const reducedMotion = useReducedMotion()
 
   // Pose "en reposo" (sin parallax). Es la base sobre la que se suma el ratón.
@@ -217,6 +270,17 @@ export default function CameraController() {
   const resolveTarget = (): { pose: Pose; duration: number } => {
     const aspect = size.width / Math.max(1, size.height)
     const fit = aspectFit(aspect)
+
+    if (phase === 'keys') {
+      return {
+        pose: {
+          position: KEYS_POSE.position.clone(),
+          lookAt: KEYS_POSE.lookAt.clone(),
+        },
+        // Un asentamiento corto, no un vuelo: la escena ya está en esta pose.
+        duration: 0.8,
+      }
+    }
 
     if (phase === 'intro') {
       // En vertical el título manda; el empuje se aleja sólo un poco para
@@ -243,38 +307,40 @@ export default function CameraController() {
       }
     }
 
+    // Modo guiado: cada paso tiene su pose. El paso 5 reutiliza la órbita del
+    // edificio seleccionado; el resto son encuadres escritos en guideSteps.
+    if (isGuideModeActive) {
+      const step = GUIDE_STEPS[currentGuideStep]
+      if (step) {
+        if (step.camera) {
+          return {
+            pose: pullBack(
+              {
+                position: new THREE.Vector3(...step.camera.position),
+                lookAt: new THREE.Vector3(...step.camera.lookAt),
+              },
+              1 + (fit - 1) * GUIDE_ASPECT_FIT,
+            ),
+            // Irrelevante con el lerp del tour; se mantiene por tipo.
+            duration: 0.35,
+          }
+        }
+        if (step.highlight === 'city') {
+          const pose = buildingPose(
+            selectedBuilding?.id ?? GUIDE_CITY_BUILDING_ID,
+            fit,
+          )
+          if (pose) return { pose, duration: BUILDING_FLIGHT }
+        }
+      }
+    }
+
     const zone = ZONES[activeZone]
 
     // Digital Twin: órbita isométrica sobre el edificio pulsado.
     if (activeZone === CITY_ZONE_INDEX && selectedBuilding) {
-      const building = CITY_LAYOUT[selectedBuilding.id]
-      if (building) {
-        const center = new THREE.Vector3(
-          zone.position[0] + building.x,
-          zone.position[1] + CITY_GROUND_Y + building.h * 0.5,
-          zone.position[2] + building.z,
-        )
-        // El edificio tiene voladizos y una losa base ancha: con la fórmula
-        // anterior la fachada llenaba la pantalla y no se leía la planta.
-        // Más aire para que el modelo completo entre en el encuadre.
-        const dist = 2.6 + building.h * 1.6
-
-        return {
-          pose: pullBack(
-            {
-              position: new THREE.Vector3(
-                center.x + dist * 0.62,
-                center.y + dist * 0.55,
-                center.z + dist * 0.62,
-              ),
-              lookAt: center,
-            },
-            // Los edificios son pequeños: se compensa menos que una zona.
-            1 + (fit - 1) * 0.75,
-          ),
-          duration: BUILDING_FLIGHT,
-        }
-      }
+      const pose = buildingPose(selectedBuilding.id, fit)
+      if (pose) return { pose, duration: BUILDING_FLIGHT }
     }
 
     // Sub-tema: arco orbital cercano alrededor del modelo de la zona.
@@ -413,9 +479,29 @@ export default function CameraController() {
     const key = `${phase}|${activeZone}|${activeSubSection ?? ''}|${selectedBuilding?.id ?? ''}|${aspectBucket}`
     const f = flight.current
 
+    // Tour guiado: persecución amortiguada de la pose del paso. Es un lerp
+    // del 5% por frame (corregido por delta), no un tween con duración: así
+    // pulsar Next a mitad de vuelo no reinicia ni salta el encuadre.
+    const guideFollowing = isGuideModeActive && phase === 'experience'
+
     // Movimiento reducido: sin tween. La cámara aterriza de inmediato en la
     // pose dirigida, incluso si la preferencia se activa a mitad de un vuelo.
-    if (reducedMotion) {
+    if (guideFollowing) {
+      const target = resolveTarget()
+      const alpha = reducedMotion
+        ? 1
+        : 1 - Math.pow(1 - GUIDE_CAMERA_LERP, dt * 60)
+      base.current.position.lerp(target.pose.position, alpha)
+      base.current.lookAt.lerp(target.pose.lookAt, alpha)
+
+      if (f.active) {
+        f.active = false
+        useExperienceStore.getState().setFlying(false)
+      }
+      // Al cerrar el tour, la clave vacía fuerza el tween normal desde la
+      // pose real (sin saltos) hacia el plano de la zona actual.
+      f.key = ''
+    } else if (reducedMotion) {
       if (key !== f.key || f.active) {
         const target = resolveTarget()
         f.key = key
@@ -467,7 +553,13 @@ export default function CameraController() {
     // Parallax de ratón: se suma a la pose base (nunca se acumula). Durante el
     // vuelo se atenúa para no romper el encuadre dirigido. Con movimiento
     // reducido se anula: también es animación provocada por la interacción.
-    const parallaxScale = reducedMotion ? 0 : f.active ? PARALLAX_IN_FLIGHT : 1
+    const parallaxScale = reducedMotion
+      ? 0
+      : guideFollowing
+        ? 0.25
+        : f.active
+          ? PARALLAX_IN_FLIGHT
+          : 1
 
     camera.position.copy(base.current.position)
     camera.position.x += globalPointer.x * PARALLAX_X * parallaxScale

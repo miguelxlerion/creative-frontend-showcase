@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useExperienceStore } from '../store/useExperienceStore'
 import { ZONES } from '../config/zones'
 import { CityBuildingData } from '../store/useExperienceStore'
+import { portfolioContent } from '../data/portfolioContent'
 
 /**
  * Panel contextual del edificio seleccionado (lateral derecho).
@@ -151,6 +152,17 @@ export default function BuildingPanel() {
           >
             ⟲ RESET VIEW
           </motion.button>
+
+          {/* Sección 05: la nota de autoría va al pie del panel, debajo de la
+              acción, para que el botón de reset conserve su jerarquía. */}
+          <motion.p
+            className="dp-contribution"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.56 }}
+          >
+            {portfolioContent.recruiter.contribution}
+          </motion.p>
         </motion.aside>
       )}
     </AnimatePresence>

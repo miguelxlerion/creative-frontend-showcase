@@ -4988,3 +4988,1417 @@ canvas {
     transform: none;
   }
 }
+
+/* ===============================================================
+   KEYBOARD GUIDE — primer acto, antes de la intro cinemática
+   =============================================================== */
+
+.keys-layer {
+  --accent: #00f0ff;
+  --accent-text: #00ffff;
+  /* Centrado con `margin: auto` en el hijo: si la guía no cabe (zoom de
+     texto), los márgenes automáticos se anulan y el scroll empieza arriba
+     sin recortar el encabezado. `justify-content: center` sí lo recortaría. */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding:
+    calc(clamp(34px, 7vh, 76px) + var(--safe-top))
+    clamp(14px, 4vw, 40px)
+    calc(clamp(34px, 7vh, 76px) + var(--safe-bottom));
+}
+
+.keys-panel {
+  position: relative;
+  width: min(900px, 100%);
+  margin: auto;
+  padding: clamp(20px, 3.2vw, 38px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.6vh, 18px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(160deg, rgba(10, 16, 30, 0.92), rgba(4, 5, 12, 0.96));
+  box-shadow:
+    0 0 70px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: keysPanelIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.keys-head {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.keys-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--hud-font);
+  font-size: 10px;
+  letter-spacing: 0.42em;
+  color: var(--accent-text);
+}
+
+.keys-pulse {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: keysPulse 1.8s ease-in-out infinite;
+}
+
+.keys-title {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(30px, 5vw, 54px);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: 0.015em;
+  color: #fff;
+  text-shadow:
+    0 0 28px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 70px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.keys-desc {
+  max-width: 68ch;
+  font-family: var(--hud-font);
+  font-size: clamp(11px, 1.4vw, 13px);
+  line-height: 1.7;
+  color: rgba(238, 246, 255, 0.72);
+}
+
+.keys-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  animation: keysActionsIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.9s both;
+}
+
+.keys-start {
+  padding: 12px 24px;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+}
+
+.keys-skip {
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(238, 246, 255, 0.75);
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.keys-skip:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.keys-hint {
+  font-family: var(--hud-font);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(238, 246, 255, 0.58);
+}
+
+.keys-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 22px;
+}
+
+.keys-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+  animation: keysRowIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(240ms + var(--row, 0) * 70ms);
+}
+
+.keys-caps {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 112px;
+}
+
+.keys-caps kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(16, 24, 40, 0.95), rgba(5, 8, 16, 0.95));
+  color: #f5f9ff;
+  font-family: var(--hud-font);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: keysTap 0.9s ease-out both;
+  animation-delay: calc(560ms + var(--row, 0) * 70ms);
+}
+
+.keys-action {
+  font-family: var(--hud-font);
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(238, 246, 255, 0.8);
+}
+
+.keys-note {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-family: var(--hud-font);
+  font-size: 10px;
+  line-height: 1.6;
+  color: rgba(238, 246, 255, 0.6);
+}
+
+/* Barrido vertical único: recorre la consola una vez y desaparece. */
+.keys-scan {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 90%, white),
+    transparent
+  );
+  box-shadow: 0 0 18px 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: keysScan 2.7s cubic-bezier(0.45, 0, 0.2, 1) 0.12s both;
+}
+
+@keyframes keysPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes keysRowIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes keysActionsIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes keysTap {
+  0%,
+  100% {
+    transform: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  34% {
+    transform: translateY(2px);
+    box-shadow:
+      0 0 14px color-mix(in srgb, var(--accent) 45%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+}
+
+@keyframes keysScan {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.45;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes keysPulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@media (max-width: 820px) {
+  .keys-list {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .keys-caps {
+    min-width: 104px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* En móvil el margen decorativo de escritorio (7vh arriba y abajo) se
+     comía 108 px y dejaba la nota y el CTA fuera del viewport. La guía debe
+     caber de una vez; el scroll queda sólo como red para zoom de texto. */
+  .keys-layer {
+    padding:
+      calc(14px + var(--safe-top))
+      10px
+      calc(14px + var(--safe-bottom));
+  }
+
+  .keys-panel {
+    padding: 16px 14px;
+    gap: 9px;
+    border-radius: 12px;
+  }
+
+  .keys-head {
+    gap: 6px;
+  }
+
+  .keys-kicker {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+  }
+
+  /* Un solo renglón: dos líneas de titular empujaban 40 px la lista. */
+  .keys-title {
+    font-size: clamp(22px, 7.1vw, 30px);
+    line-height: 1;
+  }
+
+  .keys-desc {
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+
+  .keys-actions {
+    gap: 8px;
+  }
+
+  .keys-start {
+    padding: 9px 16px;
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+  }
+
+  .keys-skip {
+    padding: 8px 13px;
+    font-size: 8.5px;
+  }
+
+  .keys-hint {
+    font-size: 8.5px;
+    line-height: 1.4;
+    letter-spacing: 0.12em;
+  }
+
+  .keys-list {
+    gap: 4px;
+  }
+
+  .keys-row {
+    padding: 4px 8px;
+    gap: 8px;
+  }
+
+  .keys-caps {
+    min-width: 86px;
+    gap: 4px;
+  }
+
+  .keys-caps kbd {
+    min-width: 22px;
+    height: 20px;
+    padding: 0 5px;
+    border-bottom-width: 2px;
+    font-size: 8.5px;
+  }
+
+  .keys-action {
+    font-size: 9.5px;
+    line-height: 1.35;
+  }
+
+  .keys-note {
+    padding-top: 9px;
+    font-size: 9px;
+    line-height: 1.45;
+  }
+}
+
+/* ===============================================================
+   GUIDED MODE — recorrido guionizado de 6 pasos
+   El backdrop (z-60) atrapa los eventos del canvas; la ficha (z-86)
+   queda por encima de los paneles (65) y por debajo del pre-order
+   (95) y del cursor (200). La tarjeta usa el acento de la zona activa
+   y un borde cian→morado para conservar la identidad del tour.
+   =============================================================== */
+
+.guide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  /* Bloquea hover/clic del canvas y la rueda de ScrollControls durante el
+     tour; sin esto se puede desviar el scroll que guioniza el paso 6. */
+  pointer-events: auto;
+  cursor: default;
+  touch-action: none;
+}
+
+.guide-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 0 max(18px, 4vw) calc(28px + var(--safe-bottom)) max(18px, 4vw);
+  /* La capa no intercepta: sólo la ficha y sus botones son pulsables. */
+  pointer-events: none;
+}
+
+.guide-card {
+  position: relative;
+  width: min(410px, 100%);
+  max-height: calc(100dvh - 56px - var(--safe-top) - var(--safe-bottom));
+  overflow-y: auto;
+  pointer-events: auto;
+  padding: 18px 20px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-text, #00f0ff) 38%, #b026ff);
+  border-radius: 16px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 13%, rgba(9, 10, 21, 0.9)),
+    rgba(5, 6, 14, 0.82) 62%
+  );
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #00f0ff 12%, transparent),
+    0 0 32px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 90px rgba(176, 38, 255, 0.12),
+    0 22px 54px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.guide-card::-webkit-scrollbar {
+  width: 4px;
+}
+
+.guide-card::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/* Foco programático del diálogo: el anillo amarillo global marcaría toda
+   la tarjeta como si fuera un control. Los botones internos sí lo conservan. */
+.guide-card:focus-visible {
+  outline: none !important;
+}
+
+.guide-card-accent {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, #00f0ff, var(--accent) 55%, #b026ff);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guide-head-copy {
+  min-width: 0;
+}
+
+.guide-kicker {
+  font-family: var(--hud-font);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--accent-text, #00f0ff);
+}
+
+.guide-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.guide-dot {
+  width: 15px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(238, 246, 255, 0.18);
+  transition:
+    width 0.25s ease,
+    background-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.guide-dot.is-done {
+  background: color-mix(in srgb, var(--accent) 62%, white 18%);
+}
+
+.guide-dot.is-active {
+  width: 30px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+.guide-counter {
+  flex: 0 0 auto;
+  padding-top: 1px;
+  font-family: var(--hud-font);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--accent-text, #00f0ff) 78%, white);
+  white-space: nowrap;
+}
+
+.guide-body {
+  margin-top: 14px;
+}
+
+.guide-title {
+  font-family: 'Space Grotesk', var(--hud-font);
+  font-size: clamp(17px, 2.1vw, 22px);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  text-wrap: balance;
+}
+
+.guide-desc {
+  margin-top: 9px;
+  font-family: var(--hud-font);
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(238, 246, 255, 0.72);
+}
+
+.guide-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 9%, rgba(8, 10, 20, 0.55));
+  font-family: var(--hud-font);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-text, #00f0ff) 84%, white);
+  white-space: nowrap;
+}
+
+.guide-chip.is-node {
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.guide-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: guideChipPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes guideChipPulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.guide-secondary {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 13%, transparent),
+    transparent
+  );
+}
+
+.guide-secondary-label {
+  font-family: var(--hud-font);
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  color: var(--accent-text, #00f0ff);
+}
+
+.guide-secondary-text {
+  margin-top: 4px;
+  font-family: var(--hud-font);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: rgba(238, 246, 255, 0.82);
+}
+
+/* Escudo del paso 2 (Testing): un check que late, sin geometría extra en
+   el DOM más allá del SVG. */
+.guide-shield {
+  width: 44px;
+  height: 44px;
+  margin-top: 10px;
+  animation: guideShieldPulse 2.4s ease-in-out infinite;
+}
+
+.guide-shield.is-static {
+  animation: none;
+}
+
+.guide-shield svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.guide-shield-outline {
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+  stroke: var(--accent-text, #00ff88);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 7px var(--accent));
+}
+
+.guide-shield-check {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+@keyframes guideShieldPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.055); }
+}
+
+.guide-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.guide-actions.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.guide-actions.is-stacked .guide-btn {
+  width: 100%;
+}
+
+.guide-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--hud-font);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    filter 0.2s ease;
+}
+
+.guide-btn.is-primary {
+  border-color: color-mix(in srgb, var(--accent) 80%, #00f0ff);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accent) 72%, #00f0ff),
+    var(--accent) 70%
+  );
+  color: #05050a;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--accent) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.guide-btn.is-primary:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.guide-btn.is-primary:disabled {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(238, 246, 255, 0.45);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.guide-btn.is-ghost {
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: transparent;
+  color: var(--accent-text, #00f0ff);
+}
+
+.guide-btn.is-ghost:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: #ffffff;
+}
+
+.guide-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.guide-skip {
+  margin-left: auto;
+  padding: 8px 2px;
+  border: none;
+  background: transparent;
+  font-family: var(--hud-font);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(238, 246, 255, 0.5);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.guide-skip:hover {
+  color: #ffffff;
+}
+
+.guide-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.guide-hint {
+  font-family: var(--hud-font);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: rgba(238, 246, 255, 0.5);
+  white-space: nowrap;
+}
+
+.guide-timer {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 120px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(238, 246, 255, 0.12);
+}
+
+.guide-timer-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #00f0ff, var(--accent));
+  animation: guideTimerFill linear forwards;
+}
+
+@keyframes guideTimerFill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Pantalla final: la ficha se centra y los botones se apilan. */
+.guide-layer.is-complete {
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bottom));
+}
+
+.guide-layer.is-complete .guide-card {
+  width: min(470px, 100%);
+}
+
+.guide-complete .guide-title {
+  margin-top: 9px;
+  font-size: clamp(24px, 3.6vw, 34px);
+}
+
+.guide-complete .guide-actions {
+  margin-top: 20px;
+}
+
+/* Etiquetas DOM ancladas a los nodos del pipeline AI (drei <Html>).
+   z-index lo fija `zIndexRange`; aquí sólo se neutraliza el puntero. */
+.guide-node-tag-wrap {
+  pointer-events: none !important;
+}
+
+.guide-node-tag {
+  display: inline-block;
+  padding: 4px 9px;
+  border: 1px solid rgba(199, 107, 255, 0.6);
+  border-radius: 999px;
+  background: rgba(8, 9, 20, 0.84);
+  font-family: var(--hud-font);
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  color: #f0e4ff;
+  white-space: nowrap;
+  box-shadow:
+    0 0 14px rgba(176, 38, 255, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* El banner del dossier, los paneles y el pre-order no deben competir con
+   el tour. El backdrop ya tapa el canvas; esto neutraliza lo que queda por
+   encima de su z-index (el panel del edificio y el botón del configurador). */
+.app-shell.is-guide-mode .building-panel,
+.app-shell.is-guide-mode .detail-panel,
+.app-shell.is-guide-mode .product-preorder-btn {
+  pointer-events: none;
+}
+
+/* Paso 6: el botón PRE-ORDER es el sujeto. Late sólo en sombra para no
+   pelear con el transform magnético de Framer Motion. */
+.product-preorder-btn.is-guide-target {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.55),
+    0 0 26px var(--accent, #ff5500),
+    0 0 60px color-mix(in srgb, var(--accent, #ff5500) 55%, transparent);
+  animation: guideTargetPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes guideTargetPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.35),
+      0 0 18px var(--accent, #ff5500),
+      0 0 40px color-mix(in srgb, var(--accent, #ff5500) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(255, 255, 255, 0.82),
+      0 0 34px var(--accent, #ff5500),
+      0 0 80px color-mix(in srgb, var(--accent, #ff5500) 65%, transparent);
+  }
+}
+
+@media (max-width: 760px) {
+  .guide-layer {
+    align-items: flex-start;
+    justify-content: center;
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  }
+
+  .guide-card {
+    width: 100%;
+    max-width: 540px;
+    max-height: 46dvh;
+    padding: 14px 16px 12px;
+    border-radius: 14px;
+  }
+
+  .guide-layer.is-complete {
+    align-items: center;
+  }
+
+  .guide-title {
+    font-size: clamp(16px, 4.8vw, 20px);
+  }
+
+  .guide-desc {
+    font-size: 10.5px;
+  }
+
+  .guide-body {
+    margin-top: 10px;
+  }
+
+  .guide-badges {
+    margin-top: 9px;
+  }
+
+  .guide-actions {
+    margin-top: 12px;
+  }
+
+  .guide-btn {
+    padding: 9px 13px;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+  }
+
+  .guide-skip {
+    padding: 9px 0;
+  }
+
+  .guide-shield {
+    width: 36px;
+    height: 36px;
+    margin-top: 8px;
+  }
+
+  .guide-hint {
+    display: none;
+  }
+
+  .guide-foot {
+    margin-top: 10px;
+  }
+
+  .guide-timer {
+    max-width: none;
+  }
+
+  .guide-node-tag {
+    padding: 3px 7px;
+    font-size: 7px;
+  }
+
+  /* El panel del edificio (paso 5) sigue viéndose, pero por debajo de la
+     ficha y sin comerse el alto de la pantalla. */
+  .app-shell.is-guide-mode .building-panel {
+    bottom: calc(64px + var(--safe-bottom));
+    max-height: 40dvh;
+  }
+}
+
+@media (max-height: 540px) and (min-width: 761px) {
+  .guide-card {
+    max-height: calc(100dvh - 32px - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .guide-title {
+    font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keys-panel,
+  .keys-row,
+  .keys-actions,
+  .keys-caps kbd,
+  .keys-pulse,
+  .keys-scan {
+    animation: none !important;
+  }
+
+  .keys-panel {
+    opacity: 1;
+    transform: none;
+  }
+
+  .keys-scan {
+    display: none;
+  }
+
+  .guide-chip-dot,
+  .guide-shield,
+  .product-preorder-btn.is-guide-target {
+    animation: none !important;
+  }
+
+  .guide-timer-fill {
+    animation: none !important;
+    transform: scaleX(1);
+    opacity: 0.45;
+  }
+}
+
+/* ===============================================================
+   RECRUITER CHECKLIST (pasada 18)
+   - Nota de autoría en paneles de detalle y del edificio.
+   - Brief textual del pipeline AI.
+   - Tech badge global de estándares (toggle en Zustand).
+   - Nota del micro-interaction magnético del Configurator.
+
+   Los tres overlays nuevos se mantienen por debajo de los paneles (z-65):
+   son chrome informativo, no sujetos interactivos que deban taparlos.
+   =============================================================== */
+
+/* --- Nota de autoría (DetailPanel + BuildingPanel) --- */
+.dp-contribution {
+  margin: 16px 0 2px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, rgba(10, 12, 24, 0.55));
+  font-family: var(--hud-font);
+  font-size: 10.5px;
+  font-style: italic;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  color: rgba(238, 246, 255, 0.84);
+}
+
+.building-panel .dp-contribution {
+  margin-top: 18px;
+}
+
+/* --- Brief del pipeline AI (zona 02) ---
+   En escritorio ocupa el hueco bajo el trigger del dossier. Bajo 1120px la
+   leyenda AI se mueve a esa misma esquina, así que el brief baja con ella. */
+.ai-brief {
+  --accent: #b026ff;
+  position: fixed;
+  top: calc(148px + var(--safe-top));
+  left: calc(24px + var(--safe-left));
+  z-index: 45;
+  width: 348px;
+  max-width: calc(100vw - 48px);
+  padding: 13px 15px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 11%, rgba(10, 12, 24, 0.84)),
+    rgba(6, 7, 15, 0.68)
+  );
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 14px 36px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  user-select: none;
+}
+
+.ai-brief-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.ai-brief-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--hud-font);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  white-space: nowrap;
+}
+
+.ai-brief-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: dotPulse 2.2s ease-in-out infinite;
+}
+
+.ai-brief-tools {
+  font-family: var(--hud-font);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: rgba(238, 246, 255, 0.72);
+  white-space: nowrap;
+}
+
+.ai-brief-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-brief-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ai-brief-stage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  white-space: nowrap;
+}
+
+.ai-brief-stage-label {
+  font-family: var(--hud-font);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: var(--accent-text, var(--accent));
+}
+
+.ai-brief-stage-detail {
+  font-family: var(--hud-font);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+  color: rgba(238, 246, 255, 0.92);
+}
+
+.ai-brief-arrow {
+  font-size: 11px;
+  color: var(--accent-text, var(--accent));
+  opacity: 0.85;
+}
+
+.ai-brief-note {
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: rgba(238, 246, 255, 0.8);
+}
+
+/* --- Tech badge global ---
+   Esquina superior derecha, debajo de la tira de pestañas. Las clases
+   `zone-*` lo bajan cuando otro HUD ya ocupa esa franja: métricas AI en la
+   zona 2 y stats de drei en la Digital Twin. */
+.tech-badge {
+  --accent: var(--cyan);
+  position: fixed;
+  top: calc(104px + var(--safe-top));
+  right: calc(24px + var(--safe-right));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100vw - 48px);
+  padding: 4px 6px 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 999px;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 8%, rgba(10, 12, 24, 0.8)),
+    rgba(6, 7, 15, 0.64)
+  );
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.tech-badge.zone-2 {
+  top: calc(252px + var(--safe-top));
+}
+
+.tech-badge.zone-4 {
+  top: calc(168px + var(--safe-top));
+}
+
+.tech-badge-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 68%, white);
+  font-family: var(--hud-font);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tech-badge-spark {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--accent-text, var(--accent));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent));
+  animation: techSpark 2.6s ease-in-out infinite;
+}
+
+@keyframes techSpark {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+.tech-badge-chevron {
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(238, 246, 255, 0.45);
+  transition: transform 0.22s ease;
+}
+
+.tech-badge-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.tech-badge-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.tech-badge-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 6%, rgba(255, 255, 255, 0.02));
+  font-family: var(--hud-font);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: rgba(238, 246, 255, 0.9);
+  white-space: nowrap;
+}
+
+.tech-badge-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* --- Nota del micro-interaction (Configurator) --- */
+.product-preorder-note {
+  position: fixed;
+  right: calc(60px + var(--safe-right));
+  bottom: calc(160px + var(--safe-bottom));
+  z-index: 64;
+  max-width: 280px;
+  margin: 0;
+  text-align: right;
+  pointer-events: none;
+  font-family: var(--hud-font);
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: rgba(238, 246, 255, 0.72);
+  text-wrap: balance;
+}
+
+@media (max-width: 1120px) {
+  .ai-brief {
+    top: calc(202px + var(--safe-top));
+    left: calc(16px + var(--safe-left));
+    width: 340px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .tech-badge {
+    top: calc(96px + var(--safe-top));
+    right: calc(16px + var(--safe-right));
+  }
+
+  .tech-badge.zone-2 {
+    top: calc(244px + var(--safe-top));
+  }
+
+  .tech-badge.zone-4 {
+    top: calc(160px + var(--safe-top));
+  }
+}
+
+@media (max-width: 900px) {
+  .ai-brief {
+    top: calc(190px + var(--safe-top));
+  }
+
+  .tech-badge {
+    top: calc(92px + var(--safe-top));
+    right: calc(12px + var(--safe-right));
+  }
+
+  .tech-badge.zone-2 {
+    top: calc(236px + var(--safe-top));
+  }
+
+  .tech-badge.zone-4 {
+    top: calc(152px + var(--safe-top));
+  }
+
+  .product-preorder-note {
+    right: calc(24px + var(--safe-right));
+    bottom: calc(148px + var(--safe-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  /* La tira de estándares se apila para no competir con la leyenda AI. */
+  .tech-badge {
+    top: calc(96px + var(--safe-top));
+    right: calc(12px + var(--safe-right));
+    flex-direction: column;
+    align-items: stretch;
+    width: min(232px, calc(100vw - 24px));
+    padding: 5px;
+    border-radius: 12px;
+  }
+
+  .tech-badge:not(.is-open) {
+    width: auto;
+  }
+
+  .tech-badge-toggle {
+    justify-content: space-between;
+  }
+
+  .tech-badge-list {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tech-badge-item {
+    justify-content: flex-start;
+  }
+
+  /* En la zona AI la leyenda ocupa el top-left y las métricas se ocultan:
+     el badge baja justo debajo de la leyenda. */
+  .tech-badge.zone-2 {
+    top: calc(190px + var(--safe-top));
+  }
+
+  /* En la Digital Twin el HUD ocupa el top-left: el badge pasa al pie. */
+  .tech-badge.zone-4 {
+    top: auto;
+    right: auto;
+    bottom: calc(84px + var(--safe-bottom));
+    left: calc(12px + var(--safe-left));
+  }
+
+  .ai-brief {
+    top: calc(330px + var(--safe-top));
+    left: calc(12px + var(--safe-left));
+    width: calc(100vw - 24px);
+    max-width: none;
+    padding: 12px 13px 11px;
+  }
+
+  /* El texto del producto vive abajo: la nota se ancla arriba a la izquierda
+     para no montarse sobre el título ni sobre el botón magnético. */
+  .product-preorder-note {
+    top: calc(240px + var(--safe-top));
+    bottom: auto;
+    left: calc(16px + var(--safe-left));
+    right: auto;
+    max-width: 250px;
+    text-align: left;
+    font-size: 8.5px;
+  }
+}
+
+@media (max-width: 380px) {
+  /* La leyenda AI pasa a 2×2 y crece: badge y brief bajan con ella. */
+  .tech-badge.zone-2 {
+    top: calc(236px + var(--safe-top));
+  }
+
+  .ai-brief {
+    top: calc(376px + var(--safe-top));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tech-badge-spark,
+  .ai-brief-dot {
+    animation: none !important;
+  }
+}

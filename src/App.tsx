@@ -5,15 +5,18 @@ import DetailPanel from './ui/DetailPanel'
 import HUDOverlay from './ui/HUDOverlay'
 import CursorOverlay from './ui/CursorOverlay'
 import CinemaControls from './ui/CinemaControls'
+import KeyboardGuide from './ui/KeyboardGuide'
 import CinematicIntro from './ui/CinematicIntro'
 import CreditsRoll from './ui/CreditsRoll'
-import GuidedTour from './ui/GuidedTour'
+import GuideMode from './ui/GuideMode'
 import CityHUD from './ui/CityHUD'
 import BuildingPanel from './ui/BuildingPanel'
 import ScrollUI from './ui/ScrollUI'
 import AIAssistantChat from './ui/AIAssistantChat'
 import AIWorkflowLegend from './ui/AIWorkflowLegend'
 import AIWorkflowStats from './ui/AIWorkflowStats'
+import AIWorkflowBrief from './ui/AIWorkflowBrief'
+import TechBadge from './ui/TechBadge'
 import AccessibilitySummary from './ui/AccessibilitySummary'
 import Scene from './scene/Scene'
 import { DPR_RANGE, IS_TOUCH_FIRST } from './scene/deviceQuality'
@@ -22,7 +25,7 @@ import { useGlobalKeyboardNav } from './hooks/useGlobalKeyboardNav'
 
 export default function App() {
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
 
   // Atajos globales: ↑/↓ recorren sub-temas, Enter abre y Escape cierra
   // devolviendo el foco al menú. Ver `useGlobalKeyboardNav`.
@@ -38,7 +41,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isGuideModeActive ? ' is-guide-mode' : ''}`}>
       {/* Primer elemento enfocable del documento: visible sólo al recibir foco. */}
       <a className="skip-link" href="#main-content">
         Skip to main content
@@ -81,7 +84,7 @@ export default function App() {
           {/* Top-left brand lockup. En escritorio lleva logo + nombre;
               en pantallas angostas el CSS deja solo el logo porque el
               nombre no cabe junto a la tira de pestañas. */}
-          {!guided && (
+          {!isGuideModeActive && (
             <header className="app-header">
               <img
                 className="app-logo"
@@ -102,31 +105,40 @@ export default function App() {
           {/* During guided mode, hide non-essential chrome:
               - NavigationUI (folder tabs)
               - HUDOverlay (hero card + dossier trigger)
-              - CinemaControls (already hides itself via guided check)
+              - CityHUD (telemetry panel)
+              - CinemaControls (already hides itself via isGuideModeActive)
               Keep:
-              - DetailPanel (sub-topic cards)
-              - GuidedTour (shot counter HUD) */}
-          {!guided && <NavigationUI />}
-          {!guided && <HUDOverlay />}
+              - BuildingPanel (step 5 simulates a building click)
+              - ScrollUI (step 6 highlights the pre-order button)
+              - GuideMode (overlay + card) */}
+          {!isGuideModeActive && <NavigationUI />}
+          {!isGuideModeActive && <HUDOverlay />}
           <DetailPanel />
           <CinemaControls />
-          <GuidedTour />
+          <GuideMode />
           {/* Digital Twin (zona 4): HUD superior + panel contextual.
               Ambos usan AnimatePresence internamente y solo se montan
               en la zona activa, así que van siempre aquí. */}
-          <CityHUD />
+          {!isGuideModeActive && <CityHUD />}
           <BuildingPanel />
           {/* Product Configurator (zona 5): scroll-driven UI + 3D product. */}
           <ScrollUI />
           {/* AI Workflow (zona 2): asistente RAG mockeado + HUD de la
               zona. Se montan siempre y deciden por store; se ocultan fuera
-              de su zona. La leyenda reutiliza `activeSubSection`. */}
-          <AIAssistantChat />
-          <AIWorkflowLegend />
-          <AIWorkflowStats />
+              de su zona. La leyenda reutiliza `activeSubSection`.
+              Durante el tour se desmontan: la ficha y los anillos ya cuentan
+              la historia y tres paneles más tapaban el pipeline. */}
+          {!isGuideModeActive && <AIAssistantChat />}
+          {!isGuideModeActive && <AIWorkflowLegend />}
+          {!isGuideModeActive && <AIWorkflowStats />}
+          <AIWorkflowBrief />
+          {/* Estándares transversales: visible en todas las zonas, colapsable
+              y oculto sólo cuando el tour toma la pantalla. */}
+          {!isGuideModeActive && <TechBadge />}
         </>
       )}
 
+      {phase === 'keys' && <KeyboardGuide />}
       {phase === 'intro' && <CinematicIntro />}
       {phase === 'credits' && <CreditsRoll key="credits-roll" />}
 

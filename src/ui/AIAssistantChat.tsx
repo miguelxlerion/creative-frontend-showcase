@@ -40,7 +40,7 @@ export default function AIAssistantChat() {
   const activeZone = useExperienceStore((s) => s.activeZone)
   const activeSubSection = useExperienceStore((s) => s.activeSubSection)
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
 
   const [open, setOpen] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -148,7 +148,7 @@ export default function AIAssistantChat() {
   const isVisible =
     activeZone === AI_ZONE_INDEX &&
     phase === 'experience' &&
-    !guided &&
+    !isGuideModeActive &&
     activeSubSection === null
 
   if (!isVisible) return null

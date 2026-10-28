@@ -4,7 +4,7 @@ import { ZONES } from '../config/zones'
 /**
  * Cinema controls: the two levers the owner requested.
  *
- *  - GUIDED MODE → launches the automatic run-through (GuidedTour.tsx).
+ *  - GUIDED MODE → launches the six-step tour (GuideMode.tsx).
  *  - END · CREDITS → movie-style exit with credits (CreditsRoll.tsx).
  *
  * They sit in a fixed cluster at BOTTOM-CENTER to avoid clashing with the
@@ -16,9 +16,9 @@ import { ZONES } from '../config/zones'
  */
 export default function CinemaControls() {
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
   const activeZone = useExperienceStore((s) => s.activeZone)
-  const setGuided = useExperienceStore((s) => s.setGuided)
+  const setGuideModeActive = useExperienceStore((s) => s.setGuideModeActive)
   const setPhase = useExperienceStore((s) => s.setPhase)
   const setZone = useExperienceStore((s) => s.setZone)
   const setActiveSubSection = useExperienceStore((s) => s.setActiveSubSection)
@@ -26,15 +26,15 @@ export default function CinemaControls() {
   // Outside the experience there's nothing to control (intro/credits own the screen).
   if (phase !== 'experience') return null
 
-  // During guided mode, hide all chrome — only the tour HUD and content remain.
-  if (guided) return null
+  // During guided mode, hide all chrome — only the guide card remains.
+  if (isGuideModeActive) return null
 
   const accent = ZONES[activeZone].accent
   const accentText = ZONES[activeZone].accentText
 
   const startCredits = () => {
     // Cleanup first: credits must start from a clean stage.
-    setGuided(false)
+    setGuideModeActive(false)
     setActiveSubSection(null)
     setZone(0)
     setPhase('credits')
@@ -55,7 +55,8 @@ export default function CinemaControls() {
       <button
         type="button"
         className="cine-btn"
-        onClick={() => setGuided(true)}
+        data-guide-start
+        onClick={() => setGuideModeActive(true)}
       >
         <span className="cine-btn-glyph" aria-hidden="true">
           ●

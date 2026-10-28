@@ -288,18 +288,20 @@ export default function AIWorkflowZone({ zone }: { zone: ZoneConfig }) {
   // ── Etiquetas (se liberan al desmontar) ──
   const labels = useMemo(
     () => ({
-      input: makeLabelTexture('INPUT', STAGE_COLORS.input),
+      // Las tres etapas se nombran como entrada → proceso → salida: así el
+      // pipeline se entiende sin abrir un panel ni interpretar la geometría.
+      input: makeLabelTexture('INPUT · CODE', STAGE_COLORS.input),
       tooltip: makeLabelTexture('VS CODE + COPILOT', STAGE_COLORS.input, {
         boxed: true,
         fontSize: 36,
       }),
-      core: makeLabelTexture('NEURAL CORE', STAGE_COLORS.ai, {
+      core: makeLabelTexture('AI PROCESSING', STAGE_COLORS.ai, {
         boxed: true,
         fontSize: 38,
       }),
       cursor: makeLabelTexture('CURSOR', STAGE_COLORS.ai),
       rag: makeLabelTexture('RAG', STAGE_COLORS.ai),
-      output: makeLabelTexture('CI/CD', STAGE_COLORS.output),
+      output: makeLabelTexture('OUTPUT · CI/CD', STAGE_COLORS.output),
       build: makeLabelTexture('BUILD', STAGE_COLORS.output, { fontSize: 52 }),
       test: makeLabelTexture('TEST', STAGE_COLORS.output, { fontSize: 52 }),
       deploy: makeLabelTexture('DEPLOY', STAGE_COLORS.output, { fontSize: 52 }),

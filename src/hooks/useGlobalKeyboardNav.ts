@@ -34,15 +34,15 @@ const DIALOG_SELECTOR =
 
 export function useGlobalKeyboardNav(): void {
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
   const activeZone = useExperienceStore((s) => s.activeZone)
   const activeSubSection = useExperienceStore((s) => s.activeSubSection)
   const openDropdown = useExperienceStore((s) => s.openDropdown)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Intro/créditos y modo guion tienen su propia máquina de teclas.
-      if (phase !== 'experience' || guided) return
+      // Intro/créditos y modo guiado tienen su propia máquina de teclas.
+      if (phase !== 'experience' || isGuideModeActive) return
       if (event.defaultPrevented || event.isComposing) return
       if (event.altKey || event.ctrlKey || event.metaKey) return
 
@@ -138,5 +138,5 @@ export function useGlobalKeyboardNav(): void {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [phase, guided, activeZone, activeSubSection, openDropdown])
+  }, [phase, isGuideModeActive, activeZone, activeSubSection, openDropdown])
 }

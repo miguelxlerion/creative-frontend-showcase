@@ -30,11 +30,11 @@ function formatStat(value: number, format: StatDef['format']): string {
 export default function AIWorkflowStats() {
   const activeZone = useExperienceStore((s) => s.activeZone)
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
   const reducedMotion = useReducedMotion()
 
   const isVisible =
-    activeZone === AI_ZONE_INDEX && phase === 'experience' && !guided
+    activeZone === AI_ZONE_INDEX && phase === 'experience' && !isGuideModeActive
 
   // 0..1: multiplica la cifra final, así el formato (147, 2.3k, 3.2) se
   // recalcula sobre el valor parcial sin duplicar lógica por stat.

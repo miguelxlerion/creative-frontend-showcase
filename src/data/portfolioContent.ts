@@ -51,6 +51,27 @@ export const portfolioContent = {
   },
   section03: {
     /**
+     * Brief textual del pipeline. La escena 3D ya tiene sus etiquetas, pero
+     * el checklist del reclutador exige que la secuencia se lea sin
+     * interpretar la geometría: entrada de código, procesamiento con
+     * Copilot/Cursor/RAG y salida CI/CD. Se monta como overlay propio para
+     * no saturar la leyenda de herramientas.
+     */
+    pipelineBrief: {
+      kicker: 'DAILY WORKFLOW',
+      tools: 'GitHub Copilot + Cursor IDE',
+      stages: [
+        { id: 'input', label: 'INPUT', detail: 'CODE' },
+        {
+          id: 'processing',
+          label: 'AI PROCESSING',
+          detail: 'COPILOT · CURSOR · RAG',
+        },
+        { id: 'output', label: 'OUTPUT', detail: 'CI/CD' },
+      ],
+      note: 'AI-assisted coding for 40-60% faster delivery while maintaining code purity.',
+    },
+    /**
      * Asistente mockeado de la zona AI Workflow. Las respuestas están
      * escritas como si salieran de un RAG: contexto recuperado + respuesta
      * fundamentada + fuentes. No hay modelo ni red detrás.
@@ -310,6 +331,130 @@ export const portfolioContent = {
         region: 'Choose a delivery region.'
       }
     }
+  },
+  /**
+   * Checklist del reclutador. Es copy transversal a varias zonas, así que
+   * vive aquí y no se repite en los componentes: DetailPanel, BuildingPanel,
+   * TechBadge y el Configurator leen estas mismas cadenas. La lista de zonas
+   * que muestran la contribución es deliberada (01, 02, 04 y 05); la 03 ya
+   * tiene su brief de pipeline y la 06 usa la nota del micro-interaction.
+   */
+  recruiter: {
+    contribution:
+      '💡 My Contribution: I personally architected this feature, optimized the render loop, and implemented the Framer Motion transitions.',
+    microInteraction:
+      'Custom micro-interaction coded from scratch using mouse coordinate math.',
+    techBadge: {
+      label: 'TECH STACK & STANDARDS',
+      items: [
+        { icon: '⚡', label: '60 FPS Optimized' },
+        { icon: '♿', label: 'WCAG AA Compliant' },
+        { icon: '🎨', label: 'Figma to Production' },
+      ],
+    },
+  },
+  /**
+   * Guion del modo GUIDED MODE. La geometría y los tiempos viven en
+   * `config/guideSteps.ts`; aquí está TODO el texto que ve el visitante para
+   * que el tour y el video de presentación digan exactamente lo mismo.
+   */
+  guideMode: {
+    stepLabel: 'STEP',
+    ofLabel: 'OF',
+    next: 'NEXT',
+    previous: 'PREVIOUS',
+    skip: 'SKIP TOUR',
+    finish: 'FINISH',
+    hint: '← → to navigate · ESC to skip',
+    replay: 'REPLAY TOUR',
+    steps: [
+      {
+        id: 'architecture',
+        kicker: 'SECTION 01 · ARCHITECTURE',
+        title: '10+ years building scalable architectures for government and enterprise clients',
+        description: 'Technical lead and sole technical owner of platforms serving municipalities and housing operators.',
+        badges: ['12+ Municipalities', '99% Uptime']
+      },
+      {
+        id: 'testing',
+        kicker: 'SECTION 02 · TESTING',
+        title: '85%+ code coverage with Jest & Cypress in CI/CD pipelines',
+        description: 'Automated quality gates on every deploy, from unit tests to end-to-end flows.',
+        badges: ['WCAG AA Compliance', 'Code Reviews']
+      },
+      {
+        id: 'ai',
+        kicker: 'SECTION 03 · AI WORKFLOW',
+        title: 'Daily AI-assisted workflow: GitHub Copilot, Cursor IDE, and RAG systems',
+        description: 'Input, neural core and CI/CD in one pipeline, with data flowing through every stage.',
+        badges: ['Copilot', 'Cursor', 'RAG']
+      },
+      {
+        id: 'creative',
+        kicker: 'SECTION 04 · CREATIVE 3D',
+        title: 'Stable 60 FPS with Three.js, WebGL, and React Three Fiber',
+        description: 'A 113k-triangle diorama instanced into 45 draw calls and kept fluid on every device.',
+        badges: ['LOD Optimization', 'Performance Profiling']
+      },
+      {
+        id: 'city',
+        kicker: 'SECTION 05 · DIGITAL TWIN',
+        title: 'Real-time IoT data visualization with InstancedMesh for 500+ buildings at 60 FPS',
+        description: 'One draw call for the whole skyline, live telemetry and an isometric fly-to for every node.',
+        badges: ['WebSocket Mock', 'Fly-to Camera']
+      },
+      {
+        id: 'product',
+        kicker: 'SECTION 06 · CONFIGURATOR',
+        title: 'Scroll-driven animations with explode views and material transitions',
+        description: 'Every rotation, exploded part and color shift follows the scroll position.',
+        badges: ['Explode View', 'Material Transition'],
+        secondary: {
+          label: 'MAGNETIC BUTTON',
+          text: 'Custom micro-interactions coded from scratch'
+        }
+      }
+    ],
+    completion: {
+      kicker: 'GUIDED MODE · COMPLETE',
+      title: 'Tour complete!',
+      description: 'Explore freely or watch the video presentation.',
+      watch: 'WATCH VIDEO',
+      explore: 'EXPLORE FREELY',
+      /**
+       * Pega aquí la URL de Loom/Drive del video de presentación. Mientras
+       * esté vacía, el botón se muestra desactivado (no inventamos enlaces).
+       */
+      videoUrl: '' as string,
+      videoPending: 'Video link pending'
+    }
+  },
+  /**
+   * Guía de teclado que abre la experiencia, antes de la intro cinemática.
+   * Sólo documenta atajos REALES: si se añade o se quita una tecla en
+   * `useGlobalKeyboardNav`, `NavigationUI` o un diálogo, hay que actualizar
+   * esta lista o la guía estaría mintiendo.
+   */
+  keyboardGuide: {
+    kicker: 'ACCESSIBILITY · WCAG 2.2 AA',
+    title: 'KEYBOARD NAVIGATION',
+    description:
+      'Every zone, sub-topic and dialog is reachable without a mouse. These are the keys this portfolio listens to.',
+    shortcuts: [
+      { keys: ['←', '→'], action: 'Previous / next section' },
+      { keys: ['↑', '↓'], action: 'Previous / next sub-topic or menu item' },
+      { keys: ['↓'], action: 'On the active tab: open its sub-topic menu' },
+      { keys: ['HOME', 'END'], action: 'First / last section or menu item' },
+      { keys: ['TAB', 'SHIFT + TAB'], action: 'Move focus between controls' },
+      { keys: ['ENTER', 'SPACE'], action: 'Activate control · open sub-topic' },
+      { keys: ['ESC'], action: 'Close menu · detail panel · dialog' },
+      { keys: ['ESC'], action: 'Skip intro · stop guided tour · exit credits' }
+    ],
+    note:
+      'The first Tab reaches the skip link and the yellow ring marks focus. Inside the dossier and pre-order dialogs, Tab stays trapped. The WebGL canvas is decorative: the tab strip reaches every zone.',
+    start: 'START INTRO',
+    skip: 'SKIP TO PORTFOLIO',
+    hint: 'Press ENTER to continue · ESC to skip this guide'
   }
 } as const
 
@@ -319,6 +464,13 @@ export type ScrollText = typeof portfolioContent.section06.scrollTexts[number]
 
 /** Iconos disponibles para los sub-temas enriquecidos (zona AI). */
 export type AIToolIconName = 'copilot' | 'cursor' | 'rag' | 'automation'
+
+/**
+ * Zonas cuyo DetailPanel muestra la nota de autoría (secciones 01, 02 y 04).
+ * La 03 queda fuera porque su brief de pipeline ya ocupa el espacio, y la 05
+ * usa el BuildingPanel (se añade allí de forma explícita).
+ */
+export const CONTRIBUTION_ZONE_INDICES: readonly number[] = [0, 1, 3]
 
 export interface SubSectionContent {
   id: string

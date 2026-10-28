@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { CITY_LAYOUT } from '../config/cityLayout'
 import { SCROLL_SECTIONS } from '../config/productLayout'
+import { GUIDE_STEPS } from '../config/guideSteps'
 
 /** Número de fases del Product Configurator (Hero → Explode → Material → Reassemble). */
 export const PRODUCT_PHASE_COUNT = SCROLL_SECTIONS.length
@@ -17,7 +18,9 @@ export const PRODUCT_PHASE_COUNT = SCROLL_SECTIONS.length
  *
  * `phase` gates the three acts of the experience: the opening title sequence,
  * the live portfolio, and the closing credits roll.
- * `guided` is the "GUIDED MODE" auto-tour (GuidedTour.tsx owns its timeline).
+ * `isGuideModeActive` + `currentGuideStep` drive the six-step guided tour
+ * (GuideMode.tsx). `guideComplete` mantiene la escena en el último paso
+ * mientras se muestra la pantalla final.
  *
  * Zona Digital Twin (zona 4):
  * - `selectedBuilding` → cámara vuela al edificio + BuildingPanel se abre.
@@ -27,7 +30,7 @@ export const PRODUCT_PHASE_COUNT = SCROLL_SECTIONS.length
  * - `sceneHover` → el CursorOverlay lo consulta para convertir el anillo en
  *   marco cuando el puntero está sobre un edificio 3D.
  */
-export type ExperiencePhase = 'intro' | 'experience' | 'credits'
+export type ExperiencePhase = 'keys' | 'intro' | 'experience' | 'credits'
 
 export type BuildingStatus = 'normal' | 'high-energy' | 'alert'
 
@@ -103,13 +106,22 @@ export interface ExperienceState {
   isFlying: boolean
   openDropdown: number
   phase: ExperiencePhase
-  guided: boolean
+  /**
+   * Tour guiado de seis pasos. `currentGuideStep` es índice 0..5;
+   * `guideComplete` se enciende al terminar el último paso y deja la escena
+   * congelada en él mientras se muestra la pantalla final.
+   */
+  isGuideModeActive: boolean
+  currentGuideStep: number
+  guideComplete: boolean
   setZone: (index: number) => void
   setFlying: (flying: boolean) => void
   setOpenDropdown: (index: number) => void
   toggleDropdown: (index: number) => void
   setPhase: (phase: ExperiencePhase) => void
-  setGuided: (guided: boolean) => void
+  setGuideModeActive: (active: boolean) => void
+  setGuideStep: (step: number) => void
+  setGuideComplete: (complete: boolean) => void
 
   /** Zona Digital Twin: edificio seleccionado (null = ninguno). */
   selectedBuilding: CityBuildingData | null
@@ -138,31 +150,35 @@ export interface ExperienceState {
   setProductPhase: (phase: number) => void
 
   /**
-   * Tour guiado del Configurator: página a la que la escena debe llevar el
-   * scroll sola. `null` = control manual. Vive en el store porque el scroll
-   * lo posee `ScrollControls` (Canvas) y lo dirige `GuidedTour` (DOM).
+   * Página del Configurator a la que el paso 6 lleva el scroll solo.
+   * `null` = control manual. Vive en el store porque el scroll lo posee
+   * `ScrollControls` (Canvas) y lo dirige `GuideMode` (DOM).
    */
   guidedProductStep: number | null
   setGuidedProductStep: (step: number | null) => void
-  /**
-   * Contador de peticiones para abrir el modal de pre-order desde el tour.
-   * Se usa un contador (no un booleano) para que varias peticiones seguidas
-   * sigan disparando el efecto sin depender de un reset intermedio.
-   */
-  preorderRequests: number
-  requestPreorder: () => void
 
   /** Sub-sección activa para zonas 0-3 (Architecture, Testing, AI, Creative). */
   activeSubSection: string | null
   setActiveSubSection: (id: string | null) => void
+
+  /**
+   * Tech badge global (⚡ 60 FPS · ♿ WCAG AA · 🎨 Figma). Vive en el store
+   * porque el toggle debe sobrevivir a los cambios de zona; el badge se
+   * desmonta durante intro/créditos/tour, pero no pierde su estado al volver.
+   */
+  techBadgeOpen: boolean
+  setTechBadgeOpen: (open: boolean) => void
 }
 
 export const useExperienceStore = create<ExperienceState>((set) => ({
   activeZone: 0,
   isFlying: false,
   openDropdown: -1,
-  phase: 'intro',
-  guided: false,
+  // La guía de teclado abre el sitio: la intro cinemática empieza después.
+  phase: 'keys',
+  isGuideModeActive: false,
+  currentGuideStep: 0,
+  guideComplete: false,
   // Cambiar de zona limpia también la selección de edificio: si no,
   // el BuildingPanel se quedaría abierto fuera de la zona de la ciudad.
   setZone: (index) =>
@@ -183,10 +199,29 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
   toggleDropdown: (index) =>
     set((state) => ({ openDropdown: state.openDropdown === index ? -1 : index })),
   setPhase: (phase) => set({ phase }),
-  // Al detener el tour, el scroll vuelve a ser manual. Si no se limpia,
-  // el siguiente frame devolvería la página a la posición del guion.
-  setGuided: (guided) =>
-    set(guided ? { guided } : { guided, guidedProductStep: null }),
+  /**
+   * Abrir el tour deja un escenario limpio (sin menús, fichas ni selección) y
+   * vuelve al paso 0. Cerrarlo devuelve el control manual sin mover la zona:
+   * el visitante explora desde donde terminó.
+   */
+  setGuideModeActive: (active) =>
+    set({
+      isGuideModeActive: active,
+      currentGuideStep: 0,
+      guideComplete: false,
+      openDropdown: -1,
+      activeSubSection: null,
+      selectedBuilding: null,
+      // Al salir, el scroll del Configurator vuelve a ser manual.
+      guidedProductStep: null,
+      energyFilter: 'all',
+      sceneHover: false,
+    }),
+  setGuideStep: (step) =>
+    set({
+      currentGuideStep: Math.max(0, Math.min(GUIDE_STEPS.length - 1, step)),
+    }),
+  setGuideComplete: (complete) => set({ guideComplete: complete }),
 
   selectedBuilding: null,
   setSelectedBuilding: (building) => set({ selectedBuilding: building }),
@@ -232,10 +267,15 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
 
   guidedProductStep: null,
   setGuidedProductStep: (step) => set({ guidedProductStep: step }),
-  preorderRequests: 0,
-  requestPreorder: () =>
-    set((state) => ({ preorderRequests: state.preorderRequests + 1 })),
 
   activeSubSection: null,
   setActiveSubSection: (id) => set({ activeSubSection: id }),
+
+  // Abierto por defecto en escritorio: los tres estándares se leen sin
+  // interacción. En móvil arranca plegado porque, desplegado, taparía el
+  // pipeline AI; el botón sigue disponible para abrirlo.
+  techBadgeOpen:
+    typeof window === 'undefined' ||
+    !window.matchMedia('(max-width: 640px)').matches,
+  setTechBadgeOpen: (open) => set({ techBadgeOpen: open }),
 }))

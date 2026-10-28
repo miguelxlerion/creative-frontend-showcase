@@ -11,6 +11,7 @@ import CreativeZone from './zones/CreativeZone'
 import CityZone from './zones/CityZone'
 import ProductZone from './zones/ProductZone'
 import CameraController from './CameraController'
+import GuideHighlights from './GuideHighlights'
 import DustField from './DustField'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import {
@@ -153,6 +154,11 @@ export default function Scene() {
 
       {/* Zonas 0-5: cada una en su slot mundial */}
       {ZONES.map((_, i) => <Zone key={i} index={i} />)}
+
+      {/* Anillos/jaulas del modo guiado: DOM de la tarjeta va aparte.
+          Se monta después de las zonas para que los halos aditivos se
+          dibujen por encima de la geometría sin pelear por el z-buffer. */}
+      <GuideHighlights />
 
       {/* Post-procesado: Bloom + ChromaticAberration + Vignette */}
       <PostProcessing />

@@ -45,6 +45,7 @@ src/
     useExperienceStore.ts   Estado global zustand
   config/
     zones.ts                ★ Registro único de las 6 zonas (config + textos + datos)
+    guideSteps.ts           ★ Guion del modo guiado: cámara, duración y foco 3D por paso
     cityLayout.ts           ★ Layout procedural de la zona Digital Twin (skyline, giros y tonos)
     productLayout.ts        ★ Layout procedural de la zona Product Configurator (8 partes dron)
   scene/
@@ -60,6 +61,7 @@ src/
       CityZone.tsx          Zona 4 — GLB low-poly instanciado (~520) + IoT + hover/clic
       ProductZone.tsx       Zona 5 — Cuadricóptero procedural (13 módulos) + ScrollControls (4 páginas)
       productScroll.ts      ★ Puente imperativo offset del canvas → HUD DOM del configurador
+    GuideHighlights.tsx   ★ Halos, anillos de suelo, escudo y jaula 3D del modo guiado
   ui/
     NavigationUI.tsx        Pestañas de carpeta ARRIBA-DERECHA + dropdowns de sub-temas
     HUDOverlay.tsx          Tarjeta héroe abajo-izquierda + trigger y modal "ZONE DOSSIER"
@@ -74,6 +76,8 @@ src/
     AIWorkflowLegend.tsx    Zona 2: leyenda interactiva de las 4 herramientas (botones reales, aria-pressed)
     AIWorkflowStats.tsx     Zona 2: telemetría mockeada con count-up (aria-hidden, decorativa)
     AIToolIcon.tsx          Iconos SVG inline de Copilot / Cursor / RAG / Automation
+    KeyboardGuide.tsx       ★ Primer acto: guía de atajos WCAG AA antes de la intro (animación CSS)
+    GuideMode.tsx           ★ Tour automático de 6 pasos: backdrop, ficha glass, teclado y cierre
   hooks/
     useReducedMotion.ts     ★ Preferencia `prefers-reduced-motion` viva (useSyncExternalStore)
     useGlobalKeyboardNav.ts ★ ←/→ zonas, ↑/↓ sub-temas, Enter/Space, Escape jerárquico (menú → panel)
@@ -81,10 +85,11 @@ src/
 
 **Capas DOM (de menor a mayor `z-index`), definidas en `styles.css`:**
 tarjeta héroe z-40 → **stats IA z-44** → **leyenda IA z-46** → **chat IA z-52** → trigger dossier z-55 →
-`DetailPanel` / `BuildingPanel` z-65 → pestañas + dropdown z-70/80 → controles de cine z-75 /
-HUD del tour z-85 → modal dossier z-90 → **pre-order z-95** → **capa del cursor z-200**. El wrapper `.folder-tabs` es z-70: sin eso, el
+**backdrop del tour z-60** → `DetailPanel` / `BuildingPanel` z-65 → pestañas + dropdown z-70/80 →
+controles de cine z-75 → **ficha del tour z-86** (etiquetas 3D de nodos 62–84) → modal dossier z-90 → **pre-order z-95** → **capa del cursor z-200** →
+**intro/créditos/guía de teclado `.cine-layer` z-300** → **skip link z-400**. El wrapper `.folder-tabs` es z-70: sin eso, el
 `z-index` interno del dropdown no servía porque el wrapper viejo (z-20) creaba su propio
-stacking context. La capa del cursor va la última y con `pointer-events: none`: sólo observa.
+stacking context. La capa del cursor va la última de la UI normal y con `pointer-events: none`: sólo observa.
 
 ---
 
@@ -123,7 +128,7 @@ activeZone: number        // índice de zona activa — única fuente de verdad 
 isFlying: boolean         // el vuelo está en curso (lo gobierna CameraController)
 activeSubSection: string | null  // sub-tema abierto dentro de la zona
 openDropdown: number      // qué dropdown está abierto (-1 = ninguno)
-phase: 'intro' | 'experience' | 'credits'
+phase: 'keys' | 'intro' | 'experience' | 'credits'
 guided: boolean
 productPhase: number      // Configurator: página visible 0..3, DERIVADA del offset de ScrollControls
 setZone / setFlying / setActiveSubSection / setOpenDropdown / setProductPhase
@@ -356,7 +361,7 @@ Nuevos componentes y flujo de tres actos:
 | `CameraController.tsx` (refactor) | La clave de vuelo incluye `phase|activeZone|activeSubSection|selectedBuilding`. Regímenes: zona (1.8 s), sub-tema — arco orbital alrededor del modelo a 0.62× distancia con `SUB_YAW_OFFSETS`/`SUB_Y_OFFSET` (1.5 s), edificio (1.4 s), intro (6.2 s), créditos (7 s). Parallax atenuado durante el vuelo. |
 
 **Nuevos campos en store (`useExperienceStore.ts`):**
-- `phase: 'intro' | 'experience' | 'credits'` — acto actual.
+- `phase: 'keys' | 'intro' | 'experience' | 'credits'` — acto actual.
 - `guided: boolean` — modo guión activo.
 - `setPhase`, `setGuided` — setters.
 
@@ -986,6 +991,214 @@ visible en la página 3 y modal `RESERVE YOUR AERIS` abierto al terminar. 386×7
 colapsados no se solapan, el panel se abre correctamente en los tres y el pre-order funciona.
 Movimiento reducido: cámara sin tween, pines sin pulso, guion sin typewriter. **0 errores de
 consola**; `npx tsc --noEmit` y `npm run build` OK.
+
+### Añadido (pasada 16): guía de teclado WCAG AA antes de la intro
+
+El sitio abre con un **acto propio, `phase === 'keys'`**, que presenta todos los atajos reales
+antes de la intro cinemática. Sólo después arrancan los timers del título y el empuje de cámara.
+
+| Pieza | Detalle |
+|-------|---------|
+| `store/useExperienceStore.ts` | `ExperiencePhase = 'keys' \| 'intro' \| 'experience' \| 'credits'`; el estado inicial pasa de `'intro'` a `'keys'`. |
+| `App.tsx` | `{phase === 'keys' && <KeyboardGuide />}` antes de `<CinematicIntro />`. |
+| `data/portfolioContent.ts` | `keyboardGuide`: kicker, título, descripción, `shortcuts` (teclas + uso), nota, CTA y hint. **Todo el copy vive aquí**; el componente sólo pinta. |
+| `ui/KeyboardGuide.tsx` | Panel `role="dialog"` con letterbox, 8 filas de `<kbd>` + acción, barrido, CTA **START INTRO** y **SKIP TO PORTFOLIO**. `Escape` salta a la intro; `Enter`/`Space` continúa si el foco no está en un control. |
+| `scene/CameraController.tsx` | `KEYS_POSE` mantiene la cámara en un plano lejano (0.8 s) durante la guía; al pasar a `'intro'` se lanza el push-in de 6.2 s. |
+| `ui/AccessibilitySummary.tsx` | La región `aria-live` anuncia la guía y que Enter continúa a la intro. |
+| `styles.css` | Bloque `.keys-*`, keyframes `keysPanelIn / keysRowIn / keysActionsIn / keysTap / keysScan / keysPulse`; reduced-motion los desactiva y oculta el barrido. |
+
+**Mapa de teclas que el sitio escucha de verdad** (también es el copy de la guía):
+
+| Tecla | Uso |
+|-------|-----|
+| ← / → | Sección anterior / siguiente |
+| ↑ / ↓ | Sub-tema o ítem de menú anterior / siguiente |
+| ↓ (en la pestaña activa) | Abre su menú de sub-temas |
+| Home / End | Primera / última sección o ítem del menú |
+| Tab / Shift + Tab | Mover el foco entre controles |
+| Enter / Space | Activar control · abrir sub-tema |
+| Escape | Cerrar menú · panel de detalle · diálogo |
+| Escape | Saltar intro · detener guion · salir de créditos |
+
+**Gotchas (no volver a romperlos)**
+
+1. **La guía es fase, no un overlay local.** Si se montara sobre `phase === 'intro'`, los
+   `setTimeout` del título y el push-in de 6.2 s ya estarían corriendo detrás. `CinematicIntro`
+   sólo se monta con `'intro'`, así que sus timers empiezan cuando el usuario pulsa START.
+2. **El autofoco del CTA espera 560 ms y sólo actúa si el foco sigue en `<body>`.** Sin ese
+   guard, quien tabula al skip link en el primer instante perdía el foco de vuelta al botón.
+3. **Enter/Space sólo se interceptan cuando el foco no está en un control.** Si está en el CTA
+   o en SKIP, manda la activación nativa; interceptarla abriría la intro dos veces.
+4. **El foco al cambiar de acto se mueve en doble `requestAnimationFrame`.** El acto de destino
+   se monta en el commit que sigue a `setPhase`; un solo frame aún ve el DOM anterior y el foco
+   caería en `<body>`.
+5. **`skipToPortfolio` fija `setZone(0)` antes de `setPhase('experience')`** y enfoca la pestaña
+   de Architecture: el usuario de teclado entra directo en la tira de navegación.
+6. **En móvil el panel debe caber sin scroll.** A ≤640 px se reducen padding de capa (14 px),
+   titular a una línea (`clamp(22px, 7.1vw, 30px)`), filas (kbd 20 px), gaps y tipografía.
+   Con los valores de escritorio el panel medía 752 px y desbordaba un viewport de 776 px.
+7. **Centrado con `margin: auto`, no con `justify-content: center`.** `.keys-layer` es flex en
+   columna y el panel usa `margin: auto`: si el texto se amplía y no cabe, los márgenes
+   automáticos se anulan y el scroll empieza arriba sin recortar el encabezado.
+8. **La animación es sólo CSS.** No añadir un bucle de rAF: el Canvas WebGL ya está
+   renderizando detrás y la guía no necesita estado por frame.
+
+**Cómo se comprobó** (Chrome headless con GPU real): 1052×785 → panel 900×557 centrado, foco en
+START INTRO, animaciones `keysPanelIn/keysRowIn/keysTap/keysScan`; Enter → intro con foco en
+`.cine-skip`; Escape en la intro → experiencia; Escape en la guía → intro; SKIP → experiencia con
+foco en la pestaña Architecture; primer Tab → skip link y **no** lo roba el autofoco; movimiento
+reducido → sin animaciones y sin barrido. 386×776 → panel 558 px, bottom 667, `scrollHeight`
+igual al viewport (sin scroll). **0 errores de consola**; `npx tsc --noEmit` y `npm run build` OK.
+
+### Añadido (pasada 17): Guided Mode — tour de seis pasos alineado con el video
+
+El botón **GUIDED MODE** de `CinemaControls` (`data-guide-start`) lanza un recorrido
+automático de seis pasos que reproduce el video de presentación. Sustituye el antiguo
+guion de 32 tomas: ahora cada zona tiene **un** plano, una ficha y una duración.
+
+| Pieza | Rol |
+|-------|-----|
+| `config/guideSteps.ts` | `GUIDE_STEPS`: por paso, `id`, `zoneIndex`, `duration`, `highlight`, `camera` y `productScroll`. `GUIDE_CITY_BUILDING_ID` elige la torre protagonista (mayor `h - distancia*0.18`). |
+| `store/useExperienceStore.ts` | `isGuideModeActive`, `currentGuideStep`, `guideComplete` + setters. `setGuideModeActive(true)` resetea paso, cierre, menús, sub-tema, edificio, scroll guiado, filtro y hover; **no cambia `activeZone`**. `setGuideStep` acota 0..5. |
+| `ui/GuideMode.tsx` | Capa DOM: backdrop con foco radial, ficha glass, dots + «STEP X OF 6», chips, auto-avance, teclado, trampa de foco y pantalla final. |
+| `scene/GuideHighlights.tsx` | Halos billboard, anillos de suelo, escudo del paso 2, etiquetas COPILOT/CURSOR/RAG y jaula del edificio. Material aditivo + Bloom. |
+| `scene/CameraController.tsx` | Rama `isGuideModeActive`: pose por paso y **persecución amortiguada** (`GUIDE_CAMERA_LERP = 0.05` por frame corregido por delta), no un tween con duración. |
+| `ui/ScrollUI.tsx` | Durante el tour oculta barra y secciones; mantiene montado **PRE-ORDER** y le añade `is-guide-target`. |
+| `App.tsx` | Con el tour activo oculta nav, HUD héroe, CityHUD, chat, leyenda y stats IA; conserva paneles, ScrollUI y `GuideMode`. |
+| `ui/AccessibilitySummary.tsx` | Anuncia cada paso (título, descripción, chips, secundario) y la pantalla final por `aria-live`. |
+| `data/portfolioContent.ts` | `guideMode`: textos de los 6 pasos, etiquetas de control, cierre y `completion.videoUrl`. |
+
+**Los seis pasos**
+
+| # | Zona | Duración | Cámara | Foco 3D |
+|---|------|----------|--------|---------|
+| 1 | Architecture | 5 s | `[0,0.7,7.2]` → `[0,0.1,0]` | Halos 1.55 / 1.92 + anillo de suelo 1.9 |
+| 2 | Testing | 5 s | `[16.2,1.2,1.8]` → `[16,-0.2,-4]` | Halo 2.15 + suelo 2.35 + escudo con check en `[0,1.2,0.35]` |
+| 3 | AI Workflow | 6 s | `[32,1.2,3.6]` → `[32,-0.15,-8]` | Halo exterior 3.9 + suelo 3.6 + halos y etiquetas de Copilot/Cursor/RAG |
+| 4 | Creative 3D | 5 s | `[52.4,3.1,-5.2]` → `[48,-0.1,-12]` | Halo 2.78 + suelo 2.45 |
+| 5 | Digital Twin | 6 s | `null`: órbita isométrica del edificio | Aro de suelo, halo y jaula wireframe sobre la torre elegida |
+| 6 | Configurator | 7 s | `[80,2,-11.5]` → `[80,0.5,-20]` | Halo 2.05 + suelo 2.35; scroll al despiece y, al 48%, a la última página |
+
+**Comportamiento**
+
+- El auto-avance es un `setTimeout` por paso; el efecto depende de `currentGuideStep`, así que
+  Next/Previous lo reinician. La barra inferior (`animationDuration`) refleja la duración real.
+- En el último paso el botón dice **FINISH** y abre la pantalla final *sin cerrar el tour*:
+  **WATCH VIDEO** (deshabilitado mientras no haya URL) y **EXPLORE FREELY** (cierra y devuelve
+  la escena a la zona actual). `Escape` también cierra desde cualquier paso.
+- El backdrop es un radial-gradient que oscurece los bordes y deja el centro del sujeto:
+  z-60, por debajo de paneles (65), nav (70/80) y ficha (86).
+- Teclado: `←`/`→` navegan, `Escape` cierra, `Tab` queda atrapado en la ficha. El hook global
+  `useGlobalKeyboardNav` se retira mientras `isGuideModeActive` (no compiten por las flechas).
+- Al cerrar, el foco vuelve a `[data-guide-start]` en **doble `requestAnimationFrame`**: el
+  botón de cine se remonta al desactivar el tour.
+- Movimiento reducido: la cámara **salta** a cada pose (`alpha = 1`), halos/escudo quietos, barra
+  de tiempo estática y Framer Motion sin transformaciones.
+
+**Gotchas (no volver a romperlos)**
+
+1. **`setZone` primero; edificio y scroll después.** `setGuideModeActive`/`setZone` limpian
+   `selectedBuilding`, `guidedProductStep` y el filtro. El efecto del paso fija la zona, luego el
+   edificio del paso 5 y luego las páginas del paso 6; invertir el orden deja el panel o el scroll
+   vacíos.
+2. **El paso 5 necesita el objeto completo de `cityData`, no el id.** `BuildingPanel` y la órbita
+   leen `selectedBuilding`; si sólo se escribe un id, el panel no abre y la cámara cae al plano
+   general.
+3. **La cámara del tour es de `CameraController`.** `GuideMode` y `ProductZone` no deben tocarla.
+   Al salir se hace `f.key = ''` para relanzar el tween normal desde la pose real; sin eso la
+   cámara se queda clavada en el último paso.
+4. **`GUIDE_CAMERA_LERP` es un lerp por frame, no un tween.** `alpha = 1 - (1 - 0.05)^(dt*60)`.
+   Si se cambia a un tween con duración, pulsar Next a mitad de vuelo reinicia el encuadre y se
+   pierde la sensación de persecución.
+5. **Las etiquetas 3D usan `zIndexRange={[84, 62]}`.** Deben quedar sobre el backdrop (60) y
+   debajo de la ficha (86). Subirlas las hace flotar sobre el diálogo.
+6. **El resaltado del PRE-ORDER usa `box-shadow`, no `transform`.** El botón ya tiene el efecto
+   magnético de Framer Motion; una animación de `transform` competiría con ella.
+7. **`ScrollUI` no se desmonta durante el tour.** Se ocultan barra y secciones, pero el botón
+   PRE-ORDER sigue en el DOM para que el foco del paso 6 exista. El offset lo sigue gobernando
+   `ScrollControls`; el tour sólo escribe `guidedProductStep` (scrollTop del DOM), nunca
+   `productScroll.offset`.
+8. **El encuadre AI se abrió a ~11,6 unidades.** Con el plano anterior CI/CD y el halo exterior
+   se cortaban en los bordes. Si se acorta, comprobar editor + torre + halo completos.
+9. **El escudo del paso 2 vive en `y=1.2`.** Con `1.55` el borde superior se salía del viewport a
+   1052×785. No subirlo sin volver a comprobar el encuadre del laboratorio.
+10. **`completion.videoUrl` está vacío a propósito.** No inventar enlaces: mientras esté vacío,
+    WATCH VIDEO se muestra deshabilitado con `videoPending`. Al pegar la URL de Loom/Drive se
+    convierte en `<a target="_blank" rel="noreferrer">`.
+11. **El resumen accesible sólo se suscribe a los campos del tour.** No añadir `cityData` ni el
+    tick IoT: el lector de pantalla recibiría una actualización cada 2 s.
+12. **La ficha es el diálogo, no los botones internos.** `tabIndex={-1}` en `.guide-card` permite
+    enfocar el diálogo al entrar y en cada paso; la trampa de Tab recorre sólo sus controles.
+
+**Cómo se comprobó** (Chrome headless con GPU real): 1052×785 → seis pasos con su ficha, chips,
+dots y contador; auto-avance 1→2 a los 5 s; `→`/`←` y `Escape`; panel del edificio en el paso 5;
+despiece y PRE-ORDER resaltado en el paso 6; pantalla final con WATCH VIDEO deshabilitado y
+EXPLORE devolviendo foco y chrome. 390×844 → ficha superior (12 px), dron y PRE-ORDER visibles sin
+solape. Movimiento reducido → cámara sin lerp y animaciones quietas. **0 errores de consola**;
+`npx tsc --noEmit` y `npm run build` OK.
+
+### Añadido (pasada 18): checklist del reclutador
+
+Se integró la checklist de Fernando de forma quirúrgica, sin reescribir componentes ni alterar
+la navegación. **Todo el copy nuevo vive en `portfolioContent.ts`**:
+
+- `section03.pipelineBrief` — kicker, herramientas, tres etapas y la nota de velocidad.
+- `recruiter.contribution` — frase de autoría de las secciones 01, 02, 04 y 05.
+- `recruiter.microInteraction` — justificación del botón magnético.
+- `recruiter.techBadge` — etiqueta e ítems del badge global.
+- `CONTRIBUTION_ZONE_INDICES = [0, 1, 3]` — zonas con `DetailPanel`; la 05 se resuelve en
+  `BuildingPanel` y por eso no está en el array.
+
+| Pieza | Rol |
+|-------|-----|
+| `ui/AIWorkflowBrief.tsx` | Overlay superior-izquierdo sólo en zona AI: **DAILY WORKFLOW · GitHub Copilot + Cursor IDE**, flujo `INPUT CODE → AI PROCESSING (COPILOT · CURSOR · RAG) → OUTPUT CI/CD` y la nota de 40-60% faster. Es texto real (no `aria-hidden`). |
+| `scene/zones/AIWorkflowZone.tsx` | Etiquetas 3D `INPUT · CODE`, `AI PROCESSING` y `OUTPUT · CI/CD`; el tooltip del editor sigue diciendo `VS CODE + COPILOT`. |
+| `ui/DetailPanel.tsx` | `.dp-contribution` al final del panel en las zonas 0, 1 y 3. |
+| `ui/BuildingPanel.tsx` | El mismo bloque al final del panel de edificio (sección 05). |
+| `ui/TechBadge.tsx` | Badge **TECH STACK & STANDARDS** con ⚡ 60 FPS · ♿ WCAG AA · 🎨 Figma to Production. Toggle real en Zustand (`techBadgeOpen`), chevron y pulso del rayo. |
+| `store/useExperienceStore.ts` | `techBadgeOpen` / `setTechBadgeOpen`. El valor inicial es `true` en escritorio y `false` si `matchMedia('(max-width: 640px)')` coincide. |
+| `ui/ScrollUI.tsx` | Nota junto al PRE-ORDER y botón magnético refactorizado con `useMotionValue` + `useSpring` (`MAGNET_STRENGTH = 0.3`; spring 260/20/0.6), componiendo `x`/`y` con el `scale` de `whileHover`. |
+| `ui/AccessibilitySummary.tsx` | Anuncia el pipeline AI en las sub-opciones y la contribución al abrir el detalle. |
+| `styles.css` | Bloque `RECRUITER CHECKLIST (pasada 18)`: `.dp-contribution`, `.ai-brief`, `.tech-badge`, `.product-preorder-note` y sus breakpoints. |
+
+**Posiciones**
+
+| Elemento | Escritorio | ≤1120 | ≤640 |
+|----------|-----------|-------|------|
+| `.ai-brief` | top 148 / left 24 | top 202 / left 16 | top 330, ancho completo |
+| `.tech-badge` | top 104 / right 24; zona 2 top 252, zona 4 top 168 | top 96 / right 16 | plegado; zona 2 top 190, zona 4 abajo-izquierda 84 |
+| `.product-preorder-note` | right 60 / bottom 160 | right 24 / bottom 148 (≤900) | top 240 / left 16, alineado a la izquierda |
+
+**Gotchas (no volver a romperlos)**
+
+1. **El estado inicial del badge depende del viewport, pero vive en el store, no en un efecto
+   de montaje.** `TechBadge` se desmonta durante el tour y al volver se remontaría: un
+   `useEffect` que lo plegara en móvil lo cerraría también después de que el usuario lo abriera.
+2. **`.tech-badge` es z-45 y debe quedarse por debajo de paneles (65), pestañas (70/80) y ficha
+   del tour (86).** Subirlo lo hace flotar sobre el contenido abierto.
+3. **`.ai-brief` y `.product-preorder-note` llevan `pointer-events: none`.** El primero no debe
+   robar clics al pipeline 3D; el segundo, la rueda de `ScrollControls`.
+4. **La contribución se pinta desde `CONTRIBUTION_ZONE_INDICES`.** Si se añade una zona con
+   sub-temas, hay que decidir explícitamente si entra en el array; `BuildingPanel` es el único
+   panel de la sección 05 y mantiene su propio bloque.
+5. **El magnetismo se escribe sólo en motion values (`x`/`y`).** No volver a asignar
+   `style.transform` a mano: pisaría el `scale` de hover y el botón dejaría de crecer.
+6. **En móvil el badge arranca plegado** para que el pipeline AI y la ficha del chat no queden
+   enterrados bajo tres filas. Al desplegarlo puede solaparse con `.ai-brief`; es el compromiso
+   aceptado para mantener el panel informativo en pantalla.
+7. **La cámara no cambió en esta pasada.** Los vuelos normales siguen siendo tweens con
+   `easeInOutCubic` dentro de `useFrame`; el modo guiado conserva `GUIDE_CAMERA_LERP = 0.05`.
+   El requisito de "lerp 0.05–0.08" se cumple en el tour, que es donde la cámara persigue un
+   objetivo móvil. Las secciones de `ScrollUI` usan springs (`stiffness` 120–150, `damping` 22–24).
+
+**Cómo se comprobó** (Chrome, 1052×801 y un iframe real de 386×780): zona AI con el brief, la
+leyenda, las stats y el chat sin solapes; contribución visible en el panel de Architecture y en
+el edificio #389 del Digital Twin; badge abierto/plegado y persistente al cambiar de zona; en
+móvil arranca plegado, el brief sigue legible sobre el chat, el badge de la ciudad queda sobre
+el pill de cine sin tocarlo y el Configurator muestra la nota y el PRE-ORDER a ancho completo.
+El botón magnético midió `translateX(21.52px) translateY(-5.2px)` al acercar el cursor a su
+esquina, conservando el `scale` de hover. **0 errores de consola nuevos**; `npx tsc --noEmit` y
+`npm run build` OK.
 
 ---
 

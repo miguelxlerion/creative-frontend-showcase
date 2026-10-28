@@ -31,13 +31,13 @@ export default function AIWorkflowLegend() {
   const activeZone = useExperienceStore((s) => s.activeZone)
   const activeSubSection = useExperienceStore((s) => s.activeSubSection)
   const phase = useExperienceStore((s) => s.phase)
-  const guided = useExperienceStore((s) => s.guided)
+  const isGuideModeActive = useExperienceStore((s) => s.isGuideModeActive)
   const setActiveSubSection = useExperienceStore((s) => s.setActiveSubSection)
   const setOpenDropdown = useExperienceStore((s) => s.setOpenDropdown)
 
   const zone = ZONES[AI_ZONE_INDEX]
   const isVisible =
-    activeZone === AI_ZONE_INDEX && phase === 'experience' && !guided
+    activeZone === AI_ZONE_INDEX && phase === 'experience' && !isGuideModeActive
 
   const toggleTool = (id: string) => {
     // El menú de pestañas (z-80) taparía el panel si quedara abierto.
